@@ -57,6 +57,11 @@ export interface FlashRequest {
   options: FlashOptions;
 }
 
+export interface EraseRequest {
+  probe?: string | null;
+  target: TargetSelection;
+}
+
 export interface MemoryRequest {
   probe?: string | null;
   target: TargetSelection;
@@ -64,21 +69,49 @@ export interface MemoryRequest {
   length: number;
 }
 
-export interface EraseRange {
-  start: number;
-  end: number;
-}
-
-export interface EraseRequest {
-  probe?: string | null;
-  target: TargetSelection;
-  range?: EraseRange | null;
-}
-
 export interface MemoryReadResult {
   address: number;
   length: number;
   dataHex: string;
+}
+
+interface AppErrorResponse {
+  message?: unknown;
+  detail?: unknown;
+  recovery?: unknown;
+}
+
+export interface ConnectRequest {
+  probe?: string | null;
+  target: TargetSelection;
+}
+
+export interface ConnectionInfo {
+  probe: string;
+  chip: string;
+  protocol: WireProtocol;
+  speedKhz?: number | null;
+  connectUnderReset: boolean;
+}
+
+export type MemoryRegionKind = "nvm" | "ram" | "generic";
+
+export interface MemoryAccessInfo {
+  read: boolean;
+  write: boolean;
+  execute: boolean;
+  boot: boolean;
+}
+
+export interface MemoryRegionLayout {
+  name?: string | null;
+  kind: MemoryRegionKind;
+  start: number;
+  end: number;
+  size: number;
+  cores: string[];
+  isAlias: boolean;
+  access: MemoryAccessInfo;
 }
 
 export interface Profile {
@@ -100,7 +133,7 @@ export interface JobEvent {
   at: string;
 }
 
-function isTauriRuntime(): boolean {
+export function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && window.__TAURI_INTERNALS__ != null;
 }
 
@@ -119,11 +152,23 @@ export async function listProbes(): Promise<ProbeSummary[]> {
   return invokeCommand("list_probes");
 }
 
+export async function connectTarget(
+  request: ConnectRequest,
+): Promise<ConnectionInfo> {
+  return invokeCommand("connect_target", { request });
+}
+
 export async function searchChips(
   query: string,
   limit = 20,
 ): Promise<string[]> {
   return invokeCommand("search_chips", { query, limit });
+}
+
+export async function targetMemoryMap(
+  chip: string,
+): Promise<MemoryRegionLayout[]> {
+  return invokeCommand("target_memory_map", { chip });
 }
 
 export async function flashFirmware(request: FlashRequest): Promise<string> {
@@ -138,6 +183,32 @@ export async function readMemory(
 
 export async function eraseTarget(request: EraseRequest): Promise<string> {
   return invokeCommand("erase_target", { request });
+}
+
+export function readableError(err: unknown, fallback = "操作失败"): string {
+  if (typeof err === "string") return err;
+  if (!err || typeof err !== "object") return fallback;
+
+  const response = err as AppErrorResponse;
+  const message =
+    typeof response.message === "string" && response.message.trim()
+      ? response.message.trim()
+      : null;
+  const detail =
+    typeof response.detail === "string" && response.detail.trim()
+      ? response.detail.trim()
+      : null;
+
+  if (message && detail) return `${message}：${detail}`;
+  if (message) return message;
+  if (detail) return detail;
+
+  if ("toString" in response && typeof response.toString === "function") {
+    const rendered = response.toString();
+    if (rendered && rendered !== "[object Object]") return rendered;
+  }
+
+  return fallback;
 }
 
 export async function loadProfiles(): Promise<Profile[]> {

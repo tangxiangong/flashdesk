@@ -1,6 +1,10 @@
 use crate::error::{AppError, Result};
-use crate::models::ProbeSummary;
-use probe_rs::probe::{DebugProbeInfo, DebugProbeSelector, list::Lister};
+use crate::models::{ConnectRequest, ConnectionInfo, ProbeSummary, WireProtocol};
+use probe_rs::Permissions;
+use probe_rs::probe::{
+    DebugProbeInfo, DebugProbeSelector, DebugProbeSelectorParseError,
+    WireProtocol as ProbeWireProtocol, list::Lister,
+};
 
 pub fn list_probes() -> Result<Vec<ProbeSummary>> {
     Ok(Lister::new()
@@ -16,6 +20,53 @@ pub fn require_probe(identifier: Option<&str>) -> Result<String> {
     select_probe_identifier(identifier, &probes)
 }
 
+pub fn connect_target(request: ConnectRequest) -> Result<ConnectionInfo> {
+    if request.target.speed_khz == Some(0) {
+        return Err(AppError::InvalidUserInput {
+            detail: "烧录速度必须大于 0 kHz".to_string(),
+        });
+    }
+
+    let probe_identifier = require_probe(request.probe.as_deref())?;
+    let target_selector = request.target.chip.as_deref();
+    let selector: DebugProbeSelector =
+        probe_identifier
+            .as_str()
+            .try_into()
+            .map_err(
+                |err: DebugProbeSelectorParseError| AppError::ProbeRsFailure {
+                    detail: err.to_string(),
+                },
+            )?;
+
+    let mut probe = Lister::new().open(selector).map_err(probe_rs_error)?;
+    let protocol = match request.target.protocol {
+        WireProtocol::Swd => ProbeWireProtocol::Swd,
+        WireProtocol::Jtag => ProbeWireProtocol::Jtag,
+    };
+    probe.select_protocol(protocol).map_err(probe_rs_error)?;
+
+    if let Some(speed_khz) = request.target.speed_khz {
+        probe.set_speed(speed_khz).map_err(probe_rs_error)?;
+    }
+
+    let session = if request.target.connect_under_reset {
+        probe.attach_under_reset(target_selector, Permissions::default())
+    } else {
+        probe.attach(target_selector, Permissions::default())
+    }
+    .map_err(probe_rs_error)?;
+    let chip = session.target().name.clone();
+
+    Ok(ConnectionInfo {
+        probe: probe_identifier,
+        chip,
+        protocol: request.target.protocol,
+        speed_khz: request.target.speed_khz,
+        connect_under_reset: request.target.connect_under_reset,
+    })
+}
+
 fn select_probe_identifier(identifier: Option<&str>, probes: &[ProbeSummary]) -> Result<String> {
     if let Some(identifier) = identifier.map(str::trim).filter(|value| !value.is_empty()) {
         return Ok(identifier.to_string());
@@ -25,7 +76,7 @@ fn select_probe_identifier(identifier: Option<&str>, probes: &[ProbeSummary]) ->
         [] => Err(AppError::ProbeNotFound),
         [probe] => Ok(probe.identifier.clone()),
         _ => Err(AppError::InvalidUserInput {
-            detail: "检测到多个探针，请手动选择一个探针".to_string(),
+            detail: "检测到多个烧录器，请手动选择一个".to_string(),
         }),
     }
 }
@@ -36,7 +87,7 @@ fn probe_summary_from_info(probe: DebugProbeInfo) -> ProbeSummary {
         vendor_id: probe.vendor_id,
         product_id: probe.product_id,
         serial_number: probe.serial_number,
-        product: None,
+        product: Some(probe.identifier),
     }
 }
 
@@ -56,6 +107,12 @@ fn selector_string_from_info(probe: &DebugProbeInfo) -> String {
     }
 
     value
+}
+
+fn probe_rs_error(error: impl std::fmt::Display) -> AppError {
+    AppError::ProbeRsFailure {
+        detail: error.to_string(),
+    }
 }
 
 #[cfg(test)]

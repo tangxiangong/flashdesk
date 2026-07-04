@@ -10,11 +10,15 @@
       void target.refreshProbes();
     }
   });
+
+  function hex16(value: number): string {
+    return value.toString(16).padStart(4, "0").toUpperCase();
+  }
 </script>
 
 <div class="picker">
   <div class="picker-head">
-    <h3>探针</h3>
+    <h3>烧录器</h3>
     <button
       type="button"
       class="ui-btn ui-btn--ghost ui-btn--icon"
@@ -39,15 +43,15 @@
     >
       <span class="ui-dot" style="--dot-color: var(--color-text-faint)"></span>
       <div>
-        <strong>自动选择</strong>
-        <span>检测到单个探针时自动使用</span>
+        <strong>自动</strong>
+        <span>单个设备时使用</span>
       </div>
     </button>
 
     {#if target.probesLoading}
       <p class="empty">正在扫描…</p>
     {:else if target.probes.length === 0}
-      <p class="empty">未检测到探针，请检查 USB 连接</p>
+      <p class="empty">未找到烧录器</p>
     {:else}
       {#each target.probes as probe (probe.identifier)}
         <button
@@ -61,8 +65,16 @@
         >
           <span class="ui-dot" style="--dot-color: var(--color-success)"></span>
           <div>
-            <strong>{probe.product ?? "Debug Probe"}</strong>
-            <span class="ui-mono">{probe.identifier}</span>
+            <strong>{probe.product ?? "烧录器"}</strong>
+            <span class="probe-meta">
+              <em class="ui-mono"
+                >{hex16(probe.vendorId)}:{hex16(probe.productId)}</em
+              >
+              {#if probe.serialNumber}
+                <em class="ui-mono">{probe.serialNumber}</em>
+              {/if}
+            </span>
+            <span class="ui-mono selector-text">{probe.identifier}</span>
           </div>
         </button>
       {/each}
@@ -105,7 +117,7 @@
     align-items: flex-start;
     gap: var(--space-2);
     border: 1px solid transparent;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     background: transparent;
     cursor: pointer;
     font: inherit;
@@ -134,6 +146,25 @@
     font-size: var(--text-2xs);
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .probe-row .probe-meta {
+    display: flex;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .probe-row em {
+    overflow: hidden;
+    color: var(--color-text-muted);
+    font-size: var(--text-2xs);
+    font-style: normal;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .probe-row .selector-text {
+    color: var(--color-text-faint);
   }
 
   .probe-row:hover {

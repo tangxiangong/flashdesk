@@ -27,7 +27,7 @@
 </script>
 
 <div class="picker">
-  <h3>目标芯片</h3>
+  <h3>型号覆盖</h3>
 
   <label class="search-field">
     <Icon src={searchIcon} size={15} />
@@ -35,7 +35,7 @@
       bind:this={inputEl}
       class="ui-input"
       value={draft}
-      placeholder="输入或搜索型号，例如 STM32F103"
+      placeholder="输入型号"
       autocomplete="off"
       oninput={(e) => onInput(e.currentTarget.value)}
       onkeydown={(e) => {
@@ -45,29 +45,40 @@
   </label>
 
   <div class="picker-list ui-scrollbar">
+    <button
+      type="button"
+      class="chip-row auto-row"
+      class:selected={!target.chip.trim()}
+      onclick={() => commit("")}
+    >
+      <strong>自动识别</strong>
+      <span>默认</span>
+    </button>
+
     {#if target.chipSearching}
       <p class="empty">搜索中…</p>
     {:else if target.chipResults.length > 0}
       {#each target.chipResults as result (result)}
-        <button type="button" class="chip-row" onclick={() => commit(result)}>
-          {result}
+        <button
+          type="button"
+          class="chip-row"
+          class:selected={target.chip === result}
+          onclick={() => commit(result)}
+        >
+          <strong class="ui-mono">{result}</strong>
         </button>
       {/each}
     {:else if draft.trim()}
-      <p class="empty">未匹配到内置芯片，可直接确认手动输入</p>
-    {:else}
-      <p class="empty">支持模糊搜索 probe-rs 内置芯片数据库</p>
+      <button
+        type="button"
+        class="chip-row"
+        onclick={() => commit(draft.trim())}
+      >
+        <strong class="ui-mono">{draft.trim()}</strong>
+        <span>使用手动型号</span>
+      </button>
     {/if}
   </div>
-
-  <button
-    type="button"
-    class="ui-btn ui-btn--primary ui-btn--block"
-    disabled={!draft.trim()}
-    onclick={() => commit(draft.trim())}
-  >
-    使用 “{draft.trim() || "…"}”
-  </button>
 </div>
 
 <style>
@@ -108,19 +119,37 @@
   }
 
   .chip-row {
+    display: grid;
+    gap: 2px;
     border: 1px solid transparent;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     background: transparent;
     color: var(--color-text);
     cursor: pointer;
     font: inherit;
-    font-family: var(--font-mono);
     font-size: var(--text-sm);
     padding: 7px var(--space-2);
     text-align: left;
   }
 
-  .chip-row:hover {
+  .chip-row strong {
+    overflow: hidden;
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .chip-row span {
+    overflow: hidden;
+    color: var(--color-text-muted);
+    font-size: var(--text-2xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .chip-row:hover,
+  .chip-row.selected {
     border-color: var(--color-accent-border);
     background: var(--color-accent-soft);
   }

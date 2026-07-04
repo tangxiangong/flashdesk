@@ -9,7 +9,9 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::probe::list_probes,
+            commands::probe::connect_target,
             commands::probe::search_chips,
+            commands::probe::target_memory_map,
             commands::flash::flash_firmware,
             commands::memory::read_memory,
             commands::memory::erase_target,

@@ -65,6 +65,30 @@ pub struct FlashRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct EraseRequest {
+    pub probe: Option<String>,
+    pub target: TargetSelection,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectRequest {
+    pub probe: Option<String>,
+    pub target: TargetSelection,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionInfo {
+    pub probe: String,
+    pub chip: String,
+    pub protocol: WireProtocol,
+    pub speed_khz: Option<u32>,
+    pub connect_under_reset: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MemoryRequest {
     pub probe: Option<String>,
     pub target: TargetSelection,
@@ -74,25 +98,40 @@ pub struct MemoryRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct EraseRequest {
-    pub probe: Option<String>,
-    pub target: TargetSelection,
-    pub range: Option<EraseRange>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EraseRange {
-    pub start: u64,
-    pub end: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct MemoryReadResult {
     pub address: u64,
     pub length: u32,
     pub data_hex: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MemoryRegionKind {
+    Nvm,
+    Ram,
+    Generic,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryAccessInfo {
+    pub read: bool,
+    pub write: bool,
+    pub execute: bool,
+    pub boot: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryRegionLayout {
+    pub name: Option<String>,
+    pub kind: MemoryRegionKind,
+    pub start: u64,
+    pub end: u64,
+    pub size: u64,
+    pub cores: Vec<String>,
+    pub is_alias: bool,
+    pub access: MemoryAccessInfo,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

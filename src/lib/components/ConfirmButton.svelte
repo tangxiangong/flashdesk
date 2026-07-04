@@ -5,7 +5,7 @@
 
   let {
     label,
-    confirmLabel = "再次点击确认",
+    confirmLabel = "确认",
     disabled = false,
     onconfirm,
   }: {

@@ -1,5 +1,6 @@
 use crate::error::{AppError, Result};
-use probe_rs::config::Registry;
+use crate::models::{MemoryAccessInfo, MemoryRegionKind, MemoryRegionLayout};
+use probe_rs::config::{MemoryRegion, Registry};
 use std::collections::HashSet;
 
 const DEFAULT_CHIP_LIMIT: usize = 20;
@@ -28,6 +29,21 @@ pub fn require_chip(chip: Option<&str>) -> Result<String> {
         })
 }
 
+pub fn target_memory_map(chip: &str) -> Result<Vec<MemoryRegionLayout>> {
+    let chip = require_chip(Some(chip))?;
+    let target = Registry::from_builtin_families()
+        .get_target_by_name(&chip)
+        .map_err(|err| AppError::InvalidUserInput {
+            detail: err.to_string(),
+        })?;
+
+    Ok(target
+        .memory_map
+        .into_iter()
+        .map(memory_region_layout)
+        .collect())
+}
+
 fn normalized_limit(limit: usize) -> usize {
     if limit == 0 {
         DEFAULT_CHIP_LIMIT
@@ -42,6 +58,62 @@ fn dedupe_chip_names(chips: Vec<String>) -> Vec<String> {
         .into_iter()
         .filter(|chip| seen.insert(chip.clone()))
         .collect()
+}
+
+fn memory_region_layout(region: MemoryRegion) -> MemoryRegionLayout {
+    let range = region.address_range();
+    let size = range.end.saturating_sub(range.start);
+
+    match region {
+        MemoryRegion::Nvm(region) => {
+            let access = access_info(region.access());
+            MemoryRegionLayout {
+                name: region.name,
+                kind: MemoryRegionKind::Nvm,
+                start: range.start,
+                end: range.end,
+                size,
+                cores: region.cores,
+                is_alias: region.is_alias,
+                access,
+            }
+        }
+        MemoryRegion::Ram(region) => {
+            let access = access_info(region.access());
+            MemoryRegionLayout {
+                name: region.name,
+                kind: MemoryRegionKind::Ram,
+                start: range.start,
+                end: range.end,
+                size,
+                cores: region.cores,
+                is_alias: false,
+                access,
+            }
+        }
+        MemoryRegion::Generic(region) => {
+            let access = access_info(region.access());
+            MemoryRegionLayout {
+                name: region.name,
+                kind: MemoryRegionKind::Generic,
+                start: range.start,
+                end: range.end,
+                size,
+                cores: region.cores,
+                is_alias: false,
+                access,
+            }
+        }
+    }
+}
+
+fn access_info(access: probe_rs::config::MemoryAccess) -> MemoryAccessInfo {
+    MemoryAccessInfo {
+        read: access.read,
+        write: access.write,
+        execute: access.execute,
+        boot: access.boot,
+    }
 }
 
 #[cfg(test)]
@@ -90,6 +162,23 @@ mod tests {
             search_chips("STM32", usize::MAX).expect("built-in registry search should work");
 
         assert!(chips.len() <= MAX_CHIP_LIMIT);
+    }
+
+    #[test]
+    fn target_memory_map_should_return_known_chip_regions() {
+        let regions =
+            target_memory_map("STM32F103C8").expect("built-in STM32F103C8 target should exist");
+
+        assert!(
+            regions
+                .iter()
+                .any(|region| region.kind == MemoryRegionKind::Nvm)
+        );
+        assert!(
+            regions
+                .iter()
+                .any(|region| region.kind == MemoryRegionKind::Ram)
+        );
     }
 
     #[test]

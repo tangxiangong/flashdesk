@@ -5,8 +5,7 @@ use crate::models::{
 };
 use crate::services::jobs::{emit_job_event, new_job_id};
 use crate::services::probe::require_probe;
-use crate::services::target::require_chip;
-use probe_rs::flashing::{FlashProgress, erase, erase_all};
+use probe_rs::flashing::{FlashProgress, erase_all};
 use probe_rs::probe::{
     DebugProbeSelector, DebugProbeSelectorParseError, WireProtocol as ProbeWireProtocol,
     list::Lister,
@@ -14,7 +13,7 @@ use probe_rs::probe::{
 use probe_rs::{Permissions, Session};
 use tauri::AppHandle;
 
-const MAX_MEMORY_TRANSFER_BYTES: u32 = 1024 * 1024;
+const MAX_MEMORY_TRANSFER_BYTES: u32 = 4096;
 
 pub fn read_memory(request: MemoryRequest) -> Result<MemoryReadResult> {
     validate_memory_range(request.address, request.length)?;
@@ -33,10 +32,6 @@ pub fn read_memory(request: MemoryRequest) -> Result<MemoryReadResult> {
 }
 
 pub fn erase_target(app: &AppHandle, request: EraseRequest) -> Result<JobId> {
-    if let Some(range) = &request.range {
-        validate_erase_range(range.start, range.end)?;
-    }
-
     let job_id = new_job_id();
     emit_job_event(
         app,
@@ -85,12 +80,7 @@ fn run_erase_target(app: &AppHandle, job_id: &JobId, request: EraseRequest) -> R
         "正在擦除目标 Flash",
     )?;
 
-    if let Some(range) = request.range {
-        erase(&mut session, &mut progress, range.start, range.end, false)
-    } else {
-        erase_all(&mut session, &mut progress, false)
-    }
-    .map_err(probe_rs_error)?;
+    erase_all(&mut session, &mut progress, false).map_err(probe_rs_error)?;
 
     emit_job_event(
         app,
@@ -107,12 +97,12 @@ fn run_erase_target(app: &AppHandle, job_id: &JobId, request: EraseRequest) -> R
 fn open_session(target: &TargetSelection, probe_identifier: Option<&str>) -> Result<Session> {
     if target.speed_khz == Some(0) {
         return Err(AppError::InvalidUserInput {
-            detail: "探针通信速度必须大于 0 kHz".to_string(),
+            detail: "烧录速度必须大于 0 kHz".to_string(),
         });
     }
 
     let probe_identifier = require_probe(probe_identifier)?;
-    let chip = require_chip(target.chip.as_deref())?;
+    let target_selector = target.chip.as_deref();
     let selector: DebugProbeSelector =
         probe_identifier
             .as_str()
@@ -135,9 +125,9 @@ fn open_session(target: &TargetSelection, probe_identifier: Option<&str>) -> Res
     }
 
     if target.connect_under_reset {
-        probe.attach_under_reset(chip, Permissions::default())
+        probe.attach_under_reset(target_selector, Permissions::default())
     } else {
-        probe.attach(chip, Permissions::default())
+        probe.attach(target_selector, Permissions::default())
     }
     .map_err(probe_rs_error)
 }
@@ -151,7 +141,7 @@ fn validate_memory_range(address: u64, length: u32) -> Result<()> {
 
     if length > MAX_MEMORY_TRANSFER_BYTES {
         return Err(AppError::InvalidUserInput {
-            detail: "单次内存操作最大 1 MiB".to_string(),
+            detail: "单次最多读取 4096 字节".to_string(),
         });
     }
 
@@ -162,16 +152,6 @@ fn validate_memory_range(address: u64, length: u32) -> Result<()> {
         })?;
 
     Ok(())
-}
-
-fn validate_erase_range(start: u64, end: u64) -> Result<()> {
-    if start >= end {
-        return Err(AppError::InvalidUserInput {
-            detail: "擦除结束地址必须大于起始地址".to_string(),
-        });
-    }
-
-    validate_memory_range(start, (end - start).try_into().unwrap_or(u32::MAX))
 }
 
 fn encode_hex(bytes: &[u8]) -> String {
@@ -187,6 +167,10 @@ fn encode_hex(bytes: &[u8]) -> String {
 }
 
 fn failed_message(error: &AppError) -> String {
+    if matches!(error, AppError::ProbeRsFailure { .. }) {
+        return "probe-rs 操作失败：probe-rs 返回了错误，完整信息见任务日志".to_string();
+    }
+
     let response = error.to_response();
     match response.detail {
         Some(detail) => format!("{}：{}", response.message, detail),
@@ -211,8 +195,13 @@ mod tests {
     }
 
     #[test]
-    fn validate_erase_range_should_reject_reversed_range() {
-        let err = validate_erase_range(0x1000, 0x1000).unwrap_err();
+    fn validate_memory_range_should_reject_too_large_length() {
+        let err = validate_memory_range(0x2000_0000, MAX_MEMORY_TRANSFER_BYTES + 1).unwrap_err();
         assert!(matches!(err, AppError::InvalidUserInput { .. }));
+    }
+
+    #[test]
+    fn encode_hex_should_render_lowercase_pairs() {
+        assert_eq!(encode_hex(&[0x00, 0x0f, 0xa5, 0xff]), "000fa5ff");
     }
 }

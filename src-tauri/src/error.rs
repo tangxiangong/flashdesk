@@ -30,7 +30,7 @@ pub struct ErrorResponse {
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
-    #[error("未找到可用探针")]
+    #[error("未找到烧录器")]
     ProbeNotFound,
     #[error("无法识别目标芯片")]
     TargetIdentifyFailed { detail: String },
@@ -59,7 +59,7 @@ impl AppError {
                 code: ErrorCode::ProbeNotFound,
                 message: self.to_string(),
                 detail: None,
-                recovery: "确认探针已连接，驱动权限可用，然后重新扫描。".to_string(),
+                recovery: "接好烧录器后重新扫描。".to_string(),
             },
             Self::TargetIdentifyFailed { detail } => ErrorResponse {
                 code: ErrorCode::TargetIdentifyFailed,
@@ -85,11 +85,11 @@ impl AppError {
                 detail: Some(detail.clone()),
                 recovery: "检查地址格式、对齐和目标芯片 Flash 映射。".to_string(),
             },
-            Self::ProbeRsFailure { .. } => ErrorResponse {
+            Self::ProbeRsFailure { detail } => ErrorResponse {
                 code: ErrorCode::ProbeRsFailure,
                 message: self.to_string(),
-                detail: Some("probe-rs 返回了错误，完整信息见任务日志".to_string()),
-                recovery: "查看右侧日志，确认芯片、协议、速度和接线。".to_string(),
+                detail: Some(detail.clone()),
+                recovery: "确认芯片连接、接口、速度和访问地址后重试。".to_string(),
             },
             Self::IoFailure(err) => ErrorResponse {
                 code: ErrorCode::IoFailure,

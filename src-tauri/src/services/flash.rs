@@ -3,7 +3,6 @@ use crate::models::{FirmwareFormat, FlashRequest, JobId, JobKind, JobStage, Wire
 use crate::services::firmware::validate_firmware;
 use crate::services::jobs::{emit_job_event, new_job_id};
 use crate::services::probe::require_probe;
-use crate::services::target::require_chip;
 use std::path::Path;
 use tauri::AppHandle;
 
@@ -16,17 +15,19 @@ pub fn validate_flash_request(request: &FlashRequest) -> Result<FirmwareFormat> 
 
     if request.target.speed_khz == Some(0) {
         return Err(AppError::InvalidUserInput {
-            detail: "探针通信速度必须大于 0 kHz".to_string(),
+            detail: "烧录速度必须大于 0 kHz".to_string(),
         });
     }
 
     let format = validate_firmware(&request.firmware)?;
-    require_chip(request.target.chip.as_deref())?;
-
     Ok(format)
 }
 
 fn failed_message(error: &AppError) -> String {
+    if matches!(error, AppError::ProbeRsFailure { .. }) {
+        return "probe-rs 操作失败：probe-rs 返回了错误，完整信息见任务日志".to_string();
+    }
+
     let response = error.to_response();
     match response.detail {
         Some(detail) => format!("{}：{}", response.message, detail),
@@ -123,11 +124,11 @@ fn run_probe_rs_flash(
         JobKind::Flash,
         JobStage::Connecting,
         Some(0.2),
-        "正在连接探针",
+        "正在连接烧录器",
     )?;
 
     let probe_identifier = require_probe(request.probe.as_deref())?;
-    let chip = require_chip(request.target.chip.as_deref())?;
+    let target_selector = request.target.chip.as_deref();
     let selector: DebugProbeSelector =
         probe_identifier
             .as_str()
@@ -163,9 +164,9 @@ fn run_probe_rs_flash(
     }
 
     let mut session = if request.target.connect_under_reset {
-        probe.attach_under_reset(chip, Permissions::default())
+        probe.attach_under_reset(target_selector, Permissions::default())
     } else {
-        probe.attach(chip, Permissions::default())
+        probe.attach(target_selector, Permissions::default())
     }
     .map_err(|err| AppError::ProbeRsFailure {
         detail: err.to_string(),
@@ -272,13 +273,13 @@ mod tests {
     }
 
     #[test]
-    fn validate_flash_request_should_reject_missing_chip() {
+    fn validate_flash_request_should_accept_auto_chip() {
         let mut request = valid_elf_request();
         request.target.chip = None;
 
-        let err = validate_flash_request(&request).expect_err("request should be rejected");
+        let format = validate_flash_request(&request).expect("request should be valid");
 
-        assert!(matches!(err, AppError::InvalidUserInput { .. }));
+        assert_eq!(format, FirmwareFormat::Elf);
     }
 
     #[test]
@@ -324,17 +325,17 @@ mod tests {
         let err = validate_flash_request(&request).expect_err("request should be rejected");
 
         assert!(
-            matches!(err, AppError::InvalidUserInput { detail } if detail == "探针通信速度必须大于 0 kHz")
+            matches!(err, AppError::InvalidUserInput { detail } if detail == "烧录速度必须大于 0 kHz")
         );
     }
 
     #[test]
     fn failed_message_should_include_frontend_safe_invalid_input_detail() {
         let message = failed_message(&AppError::InvalidUserInput {
-            detail: "探针通信速度必须大于 0 kHz".to_string(),
+            detail: "烧录速度必须大于 0 kHz".to_string(),
         });
 
-        assert_eq!(message, "用户输入无效：探针通信速度必须大于 0 kHz");
+        assert_eq!(message, "用户输入无效：烧录速度必须大于 0 kHz");
     }
 
     #[test]
