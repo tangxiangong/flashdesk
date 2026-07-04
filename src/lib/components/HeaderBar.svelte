@@ -30,8 +30,8 @@
   <div class="brand">
     <span class="mark"><Icon src={flashIcon} size={16} /></span>
     <div class="brand-copy">
-      <strong>Probe RS</strong>
-      <span>通用烧录工具</span>
+      <strong>FlashDesk</strong>
+      <span>固件烧录工具</span>
     </div>
   </div>
 

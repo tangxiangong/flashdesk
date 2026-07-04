@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "probe-rs-gui",
+  "productName": "FlashDesk",
   "version": "0.1.0",
-  "identifier": "com.xiaoyu.probe-rs-gui",
+  "identifier": "com.xiaoyu.flashdesk",
   "build": {
     "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Probe GUI",
+        "title": "FlashDesk",
         "width": 1220,
         "height": 780,
         "minWidth": 860,

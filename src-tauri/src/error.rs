@@ -30,7 +30,7 @@ pub struct ErrorResponse {
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
-    #[error("未找到可用调试探针")]
+    #[error("未找到可用探针")]
     ProbeNotFound,
     #[error("无法识别目标芯片")]
     TargetIdentifyFailed { detail: String },

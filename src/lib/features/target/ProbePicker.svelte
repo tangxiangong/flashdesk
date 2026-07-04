@@ -14,7 +14,7 @@
 
 <div class="picker">
   <div class="picker-head">
-    <h3>调试探针</h3>
+    <h3>探针</h3>
     <button
       type="button"
       class="ui-btn ui-btn--ghost ui-btn--icon"

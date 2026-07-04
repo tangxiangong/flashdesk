@@ -1067,6 +1067,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
 
 [[package]]
+name = "flashdesk"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "probe-rs",
+ "sanitize-filename",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "thiserror 2.0.18",
+ "uuid",
+]
+
+[[package]]
 name = "flate2"
 version = "1.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2832,22 +2848,6 @@ dependencies = [
  "tracing",
  "uf2-decode",
  "zerocopy",
-]
-
-[[package]]
-name = "probe-rs-gui"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "probe-rs",
- "sanitize-filename",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "thiserror 2.0.18",
- "uuid",
 ]
 
 [[package]]

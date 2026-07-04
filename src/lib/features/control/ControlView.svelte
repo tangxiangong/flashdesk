@@ -148,7 +148,7 @@
       <div class="ui-switch-row">
         <div class="ui-switch-copy">
           <strong>复位后暂停核心</strong>
-          <span>复位并立即 halt，便于调试而非直接运行</span>
+          <span>复位并立即 halt，便于烧录后检查目标状态</span>
         </div>
         <button
           type="button"

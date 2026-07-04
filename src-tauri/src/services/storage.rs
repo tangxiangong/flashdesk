@@ -124,7 +124,7 @@ mod tests {
 
     fn paths() -> StoragePaths {
         StoragePaths::new(
-            std::env::temp_dir().join(format!("probe-rs-gui-storage-test-{}", Uuid::new_v4())),
+            std::env::temp_dir().join(format!("flashdesk-storage-test-{}", Uuid::new_v4())),
         )
     }
 
@@ -214,7 +214,7 @@ mod tests {
     #[test]
     fn ensure_storage_should_return_storage_failure_when_root_is_file() {
         let paths = StoragePaths::new(
-            std::env::temp_dir().join(format!("probe-rs-gui-storage-file-root-{}", Uuid::new_v4())),
+            std::env::temp_dir().join(format!("flashdesk-storage-file-root-{}", Uuid::new_v4())),
         );
         fs::write(&paths.root, "not a directory").unwrap();
         let err = ensure_storage(&paths).unwrap_err();

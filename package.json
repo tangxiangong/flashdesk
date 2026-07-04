@@ -1,7 +1,7 @@
 {
-  "name": "probe-rs-gui",
+  "name": "flashdesk",
   "version": "0.1.0",
-  "description": "",
+  "description": "FlashDesk desktop app for firmware flashing workflows",
   "type": "module",
   "scripts": {
     "dev": "vite dev",

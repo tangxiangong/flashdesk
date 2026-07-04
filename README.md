@@ -1,6 +1,8 @@
-# Tauri + SvelteKit + TypeScript
+# FlashDesk
 
-This template should help get you started developing with Tauri, SvelteKit and TypeScript in Vite.
+Desktop firmware flashing for probe-rs supported chips and probes.
+
+Built with Tauri, SvelteKit, TypeScript, and Rust.
 
 ## Recommended IDE Setup
 

@@ -336,7 +336,7 @@ fn run_reset_target(app: &AppHandle, job_id: &JobId, request: TargetActionReques
 fn open_session(target: &TargetSelection, probe_identifier: Option<&str>) -> Result<Session> {
     if target.speed_khz == Some(0) {
         return Err(AppError::InvalidUserInput {
-            detail: "调试速度必须大于 0 kHz".to_string(),
+            detail: "探针通信速度必须大于 0 kHz".to_string(),
         });
     }
 

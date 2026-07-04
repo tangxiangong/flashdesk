@@ -1,6 +1,6 @@
 export type ThemeMode = "light" | "dark";
 
-const STORAGE_KEY = "probe-rs-gui:theme";
+const STORAGE_KEY = "flashdesk:theme";
 
 function readInitial(): ThemeMode {
   if (typeof window === "undefined") {

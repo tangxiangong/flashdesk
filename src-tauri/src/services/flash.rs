@@ -22,7 +22,7 @@ pub fn validate_flash_request(request: &FlashRequest) -> Result<FirmwareFormat> 
 
     if request.target.speed_khz == Some(0) {
         return Err(AppError::InvalidUserInput {
-            detail: "调试速度必须大于 0 kHz".to_string(),
+            detail: "探针通信速度必须大于 0 kHz".to_string(),
         });
     }
 
@@ -131,7 +131,7 @@ fn run_probe_rs_flash(
         JobKind::Flash,
         JobStage::Connecting,
         Some(0.2),
-        "正在连接调试探针",
+        "正在连接探针",
     )?;
 
     let probe_identifier = require_probe(request.probe.as_deref())?;
@@ -364,17 +364,17 @@ mod tests {
         let err = validate_flash_request(&request).expect_err("request should be rejected");
 
         assert!(
-            matches!(err, AppError::InvalidUserInput { detail } if detail == "调试速度必须大于 0 kHz")
+            matches!(err, AppError::InvalidUserInput { detail } if detail == "探针通信速度必须大于 0 kHz")
         );
     }
 
     #[test]
     fn failed_message_should_include_frontend_safe_invalid_input_detail() {
         let message = failed_message(&AppError::InvalidUserInput {
-            detail: "调试速度必须大于 0 kHz".to_string(),
+            detail: "探针通信速度必须大于 0 kHz".to_string(),
         });
 
-        assert_eq!(message, "用户输入无效：调试速度必须大于 0 kHz");
+        assert_eq!(message, "用户输入无效：探针通信速度必须大于 0 kHz");
     }
 
     #[test]

@@ -25,7 +25,7 @@ fn select_probe_identifier(identifier: Option<&str>, probes: &[ProbeSummary]) ->
         [] => Err(AppError::ProbeNotFound),
         [probe] => Ok(probe.identifier.clone()),
         _ => Err(AppError::InvalidUserInput {
-            detail: "检测到多个调试探针，请手动选择一个探针".to_string(),
+            detail: "检测到多个探针，请手动选择一个探针".to_string(),
         }),
     }
 }
