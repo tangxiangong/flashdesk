@@ -1,0 +1,113 @@
+use crate::error::{AppError, Result};
+use probe_rs::config::Registry;
+use std::collections::HashSet;
+
+const DEFAULT_CHIP_LIMIT: usize = 20;
+const MAX_CHIP_LIMIT: usize = 100;
+
+pub fn search_chips(query: &str, limit: usize) -> Result<Vec<String>> {
+    let trimmed = query.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::InvalidUserInput {
+            detail: "芯片搜索关键词不能为空".to_string(),
+        });
+    }
+
+    let limit = normalized_limit(limit);
+    let chips = Registry::from_builtin_families().search_chips(trimmed);
+
+    Ok(dedupe_chip_names(chips).into_iter().take(limit).collect())
+}
+
+pub fn require_chip(chip: Option<&str>) -> Result<String> {
+    chip.map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .ok_or_else(|| AppError::InvalidUserInput {
+            detail: "未选择芯片；自动识别失败时必须手动选择 chip".to_string(),
+        })
+}
+
+fn normalized_limit(limit: usize) -> usize {
+    if limit == 0 {
+        DEFAULT_CHIP_LIMIT
+    } else {
+        limit.min(MAX_CHIP_LIMIT)
+    }
+}
+
+fn dedupe_chip_names(chips: Vec<String>) -> Vec<String> {
+    let mut seen = HashSet::new();
+    chips
+        .into_iter()
+        .filter(|chip| seen.insert(chip.clone()))
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::AppError;
+
+    #[test]
+    fn require_chip_should_return_explicit_chip() {
+        let chip = require_chip(Some("STM32F103C8Tx")).expect("explicit chip should be valid");
+
+        assert_eq!(chip, "STM32F103C8Tx");
+    }
+
+    #[test]
+    fn require_chip_should_reject_blank_chip() {
+        let err = require_chip(Some("   ")).expect_err("blank chip should be rejected");
+
+        assert!(matches!(err, AppError::InvalidUserInput { .. }));
+    }
+
+    #[test]
+    fn search_chips_should_reject_blank_query() {
+        let err = search_chips("   ", 10).expect_err("blank query should be rejected");
+
+        assert!(matches!(err, AppError::InvalidUserInput { .. }));
+    }
+
+    #[test]
+    fn search_chips_should_respect_limit_for_builtin_registry() {
+        let chips = search_chips("STM32F103", 3).expect("built-in registry search should work");
+
+        assert!(chips.len() <= 3);
+    }
+
+    #[test]
+    fn search_chips_should_use_default_limit_when_limit_is_zero() {
+        let chips = search_chips("STM32F103", 0).expect("built-in registry search should work");
+
+        assert!(chips.len() <= DEFAULT_CHIP_LIMIT);
+    }
+
+    #[test]
+    fn search_chips_should_clamp_huge_limit() {
+        let chips =
+            search_chips("STM32", usize::MAX).expect("built-in registry search should work");
+
+        assert!(chips.len() <= MAX_CHIP_LIMIT);
+    }
+
+    #[test]
+    fn dedupe_chip_names_should_preserve_first_occurrence_order() {
+        let chips = dedupe_chip_names(vec![
+            "STM32F103C8".to_string(),
+            "STM32F103RB".to_string(),
+            "STM32F103C8".to_string(),
+            "STM32F103ZE".to_string(),
+        ]);
+
+        assert_eq!(
+            chips,
+            vec![
+                "STM32F103C8".to_string(),
+                "STM32F103RB".to_string(),
+                "STM32F103ZE".to_string()
+            ]
+        );
+    }
+}
