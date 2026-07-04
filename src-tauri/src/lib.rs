@@ -12,11 +12,7 @@ pub fn run() {
             commands::probe::search_chips,
             commands::flash::flash_firmware,
             commands::memory::read_memory,
-            commands::memory::write_memory,
-            commands::memory::dump_memory,
             commands::memory::erase_target,
-            commands::memory::reset_target,
-            commands::memory::attach_target,
             commands::storage::load_profiles,
             commands::storage::save_profiles,
         ])

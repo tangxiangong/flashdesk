@@ -18,11 +18,7 @@
   let linkOpen = $state(false);
 
   let linkTone = $derived(
-    target.link.state === "ok"
-      ? "var(--color-success)"
-      : target.link.state === "error"
-        ? "var(--color-danger)"
-        : "var(--color-text-faint)",
+    target.ready ? "var(--color-success)" : "var(--color-text-faint)",
   );
 </script>
 

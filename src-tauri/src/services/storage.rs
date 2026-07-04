@@ -145,7 +145,6 @@ mod tests {
                 skip_erase: false,
                 allow_erase_all: false,
                 reset_after: true,
-                halt_after: false,
             },
             bin_base_address: Some(0x0800_0000),
             updated_at: Utc::now(),

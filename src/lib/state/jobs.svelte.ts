@@ -18,7 +18,6 @@ const STAGE_LABEL: Record<JobStage, string> = {
   resetting: "复位中",
   completed: "已完成",
   failed: "失败",
-  cancelled: "已取消",
 };
 
 const STAGE_TONE: Record<JobStage, StageTone> = {
@@ -31,7 +30,6 @@ const STAGE_TONE: Record<JobStage, StageTone> = {
   resetting: "progress",
   completed: "success",
   failed: "danger",
-  cancelled: "neutral",
 };
 
 export function stageLabel(stage: JobStage): string {
@@ -43,7 +41,7 @@ export function stageTone(stage: JobStage): StageTone {
 }
 
 export function isStageTerminal(stage: JobStage): boolean {
-  return stage === "completed" || stage === "failed" || stage === "cancelled";
+  return stage === "completed" || stage === "failed";
 }
 
 class JobsState {

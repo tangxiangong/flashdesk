@@ -1,17 +1,9 @@
 import {
-  attachTarget,
   listProbes,
   searchChips,
   type ProbeSummary,
-  type TargetStatus,
   type WireProtocol,
 } from "$lib/api/tauri";
-
-export type LinkCheck =
-  | { state: "idle" }
-  | { state: "checking" }
-  | { state: "ok"; status: TargetStatus }
-  | { state: "error"; message: string };
 
 function readableError(err: unknown): string {
   if (typeof err === "string") return err;
@@ -35,8 +27,6 @@ class TargetState {
   chipQuery = $state("");
   chipResults = $state<string[]>([]);
   chipSearching = $state(false);
-
-  link = $state<LinkCheck>({ state: "idle" });
 
   selectedProbeSummary = $derived(
     this.probes.find((p) => p.identifier === this.probe) ?? null,
@@ -95,28 +85,10 @@ class TargetState {
     this.chip = chip;
     this.chipResults = [];
     this.chipQuery = "";
-    this.link = { state: "idle" };
   }
 
   pickProbe(identifier: string | null) {
     this.probe = identifier;
-    this.link = { state: "idle" };
-  }
-
-  async testLink() {
-    if (!this.ready) return;
-    this.link = { state: "checking" };
-
-    try {
-      const status = await attachTarget({
-        probe: this.probe,
-        target: this.selection(),
-        haltAfterReset: false,
-      });
-      this.link = { state: "ok", status };
-    } catch (err) {
-      this.link = { state: "error", message: readableError(err) };
-    }
   }
 }
 

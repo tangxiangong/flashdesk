@@ -8,12 +8,6 @@ use std::path::Path;
 use tauri::AppHandle;
 
 pub fn validate_flash_request(request: &FlashRequest) -> Result<FirmwareFormat> {
-    if request.options.reset_after && request.options.halt_after {
-        return Err(AppError::InvalidUserInput {
-            detail: "reset_after 和 halt_after 不能同时启用".to_string(),
-        });
-    }
-
     if request.options.skip_erase && request.options.allow_erase_all {
         return Err(AppError::InvalidUserInput {
             detail: "skip_erase 和 allow_erase_all 不能同时启用".to_string(),
@@ -123,8 +117,6 @@ fn run_probe_rs_flash(
         DebugProbeSelector, DebugProbeSelectorParseError, WireProtocol as ProbeWireProtocol,
         list::Lister,
     };
-    use std::time::Duration;
-
     emit_job_event(
         app,
         job_id,
@@ -223,24 +215,6 @@ fn run_probe_rs_flash(
             })?;
     }
 
-    if request.options.halt_after {
-        emit_job_event(
-            app,
-            job_id,
-            JobKind::Flash,
-            JobStage::Resetting,
-            Some(0.9),
-            "正在暂停目标芯片",
-        )?;
-
-        session
-            .core(0)
-            .and_then(|mut core| core.halt(Duration::from_millis(500)).map(|_| ()))
-            .map_err(|err| AppError::ProbeRsFailure {
-                detail: err.to_string(),
-            })?;
-    }
-
     Ok(())
 }
 
@@ -286,22 +260,8 @@ mod tests {
                 skip_erase: false,
                 allow_erase_all: false,
                 reset_after: false,
-                halt_after: false,
             },
         }
-    }
-
-    #[test]
-    fn validate_flash_request_should_reject_reset_and_halt_together() {
-        let mut request = valid_elf_request();
-        request.options.reset_after = true;
-        request.options.halt_after = true;
-
-        let err = validate_flash_request(&request).expect_err("request should be rejected");
-
-        assert!(
-            matches!(err, AppError::InvalidUserInput { detail } if detail == "reset_after 和 halt_after 不能同时启用")
-        );
     }
 
     #[test]

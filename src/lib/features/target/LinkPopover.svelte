@@ -1,8 +1,5 @@
 <script lang="ts">
   import Segmented from "$lib/components/Segmented.svelte";
-  import Icon from "$lib/components/Icon.svelte";
-  import checkIcon from "$lib/assets/icons/check.svg?url";
-  import alertIcon from "$lib/assets/icons/alert.svg?url";
   import { target } from "$lib/state/target.svelte";
   import type { WireProtocol } from "$lib/api/tauri";
 </script>
@@ -47,31 +44,6 @@
       onclick={() => (target.connectUnderReset = !target.connectUnderReset)}
     ></button>
   </div>
-
-  <div class="test-row">
-    <button
-      type="button"
-      class="ui-btn"
-      disabled={!target.ready || target.link.state === "checking"}
-      onclick={() => void target.testLink()}
-    >
-      {target.link.state === "checking" ? "检查中…" : "测试连接"}
-    </button>
-
-    {#if target.link.state === "ok"}
-      <span class="result ok">
-        <Icon src={checkIcon} size={13} />
-        core {target.link.status.core} · {target.link.status.halted
-          ? "已暂停"
-          : "运行中"}
-      </span>
-    {:else if target.link.state === "error"}
-      <span class="result err">
-        <Icon src={alertIcon} size={13} />
-        {target.link.message}
-      </span>
-    {/if}
-  </div>
 </div>
 
 <style>
@@ -98,26 +70,5 @@
     color: var(--color-text-muted);
     font-size: var(--text-xs);
     font-weight: 600;
-  }
-
-  .test-row {
-    display: grid;
-    gap: var(--space-2);
-  }
-
-  .result {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: var(--text-xs);
-    overflow-wrap: anywhere;
-  }
-
-  .result.ok {
-    color: var(--color-success);
-  }
-
-  .result.err {
-    color: var(--color-danger);
   }
 </style>

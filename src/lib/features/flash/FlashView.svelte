@@ -11,11 +11,12 @@
     type FlashOptions,
     type FlashRequest,
   } from "$lib/api/tauri";
+  import { parseAddressInput } from "$lib/utils/address";
   import { target } from "$lib/state/target.svelte";
   import { jobs, isStageTerminal } from "$lib/state/jobs.svelte";
 
   type EraseStrategy = "auto" | "full" | "skip";
-  type AfterFlash = "reset" | "halt" | "none";
+  type AfterFlash = "reset" | "none";
 
   let firmwarePath = $state("");
   let binBaseAddress = $state("0x08000000");
@@ -29,12 +30,16 @@
   let pickerError = $state<string | null>(null);
 
   let isBin = $derived(firmwarePath.trim().toLowerCase().endsWith(".bin"));
+  let parsedBinBaseAddress = $derived(parseAddressInput(binBaseAddress));
   let latest = $derived(jobs.latestFor(jobId));
   let running = $derived(
     jobId != null && !isStageTerminal(latest?.stage ?? "queued"),
   );
   let canSubmit = $derived(
-    !running && firmwarePath.trim().length > 0 && target.ready,
+    !running &&
+      firmwarePath.trim().length > 0 &&
+      target.ready &&
+      (!isBin || parsedBinBaseAddress != null),
   );
 
   function optionsFromUi(): FlashOptions {
@@ -44,17 +49,7 @@
       skipErase: eraseStrategy === "skip",
       allowEraseAll: eraseStrategy === "full",
       resetAfter: afterFlash === "reset",
-      haltAfter: afterFlash === "halt",
     };
-  }
-
-  function parseAddress(value: string): number | null {
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    return Number.parseInt(
-      trimmed,
-      trimmed.toLowerCase().startsWith("0x") ? 16 : 10,
-    );
   }
 
   function readableError(err: unknown): string {
@@ -91,10 +86,15 @@
     submitError = null;
     jobId = null;
 
+    if (isBin && parsedBinBaseAddress == null) {
+      submitError = "BIN 基地址必须是有效的十进制或 0x 开头十六进制地址";
+      return;
+    }
+
     const request: FlashRequest = {
       firmware: {
         path: firmwarePath.trim(),
-        baseAddress: isBin ? parseAddress(binBaseAddress) : null,
+        baseAddress: isBin ? parsedBinBaseAddress : null,
       },
       probe: target.probe,
       target: target.selection(),
@@ -156,6 +156,13 @@
         />
       </label>
     {/if}
+
+    {#if isBin && parsedBinBaseAddress == null}
+      <p class="ui-callout ui-callout--danger">
+        <Icon src={alertIcon} size={14} />BIN 基地址必须是有效的十进制或 0x
+        开头十六进制地址
+      </p>
+    {/if}
   </div>
 
   <div class="ui-panel section">
@@ -181,8 +188,7 @@
           value={afterFlash}
           options={[
             { value: "reset" as AfterFlash, label: "复位运行" },
-            { value: "halt" as AfterFlash, label: "复位暂停" },
-            { value: "none" as AfterFlash, label: "保持连接" },
+            { value: "none" as AfterFlash, label: "不复位" },
           ]}
           onchange={(v) => (afterFlash = v)}
         />

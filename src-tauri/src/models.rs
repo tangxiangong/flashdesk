@@ -52,7 +52,6 @@ pub struct FlashOptions {
     pub skip_erase: bool,
     pub allow_erase_all: bool,
     pub reset_after: bool,
-    pub halt_after: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,25 +74,6 @@ pub struct MemoryRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WriteMemoryRequest {
-    pub probe: Option<String>,
-    pub target: TargetSelection,
-    pub address: u64,
-    pub data_hex: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DumpMemoryRequest {
-    pub probe: Option<String>,
-    pub target: TargetSelection,
-    pub address: u64,
-    pub length: u32,
-    pub output_path: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct EraseRequest {
     pub probe: Option<String>,
     pub target: TargetSelection,
@@ -109,26 +89,10 @@ pub struct EraseRange {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TargetActionRequest {
-    pub probe: Option<String>,
-    pub target: TargetSelection,
-    pub halt_after_reset: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct MemoryReadResult {
     pub address: u64,
     pub length: u32,
     pub data_hex: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TargetStatus {
-    pub chip: String,
-    pub core: usize,
-    pub halted: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -140,11 +104,6 @@ pub struct JobId(pub Uuid);
 pub enum JobKind {
     Flash,
     Erase,
-    Reset,
-    ReadMemory,
-    WriteMemory,
-    DumpMemory,
-    Attach,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -159,7 +118,6 @@ pub enum JobStage {
     Resetting,
     Completed,
     Failed,
-    Cancelled,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

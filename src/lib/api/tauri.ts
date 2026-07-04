@@ -9,14 +9,7 @@ declare global {
 
 export type FirmwareFormat = "elf" | "hex" | "bin";
 export type WireProtocol = "swd" | "jtag";
-export type JobKind =
-  | "flash"
-  | "erase"
-  | "reset"
-  | "read_memory"
-  | "write_memory"
-  | "dump_memory"
-  | "attach";
+export type JobKind = "flash" | "erase";
 export type JobStage =
   | "queued"
   | "connecting"
@@ -26,8 +19,7 @@ export type JobStage =
   | "verifying"
   | "resetting"
   | "completed"
-  | "failed"
-  | "cancelled";
+  | "failed";
 
 export interface FirmwareInput {
   path: string;
@@ -56,7 +48,6 @@ export interface FlashOptions {
   skipErase: boolean;
   allowEraseAll: boolean;
   resetAfter: boolean;
-  haltAfter: boolean;
 }
 
 export interface FlashRequest {
@@ -73,21 +64,6 @@ export interface MemoryRequest {
   length: number;
 }
 
-export interface WriteMemoryRequest {
-  probe?: string | null;
-  target: TargetSelection;
-  address: number;
-  dataHex: string;
-}
-
-export interface DumpMemoryRequest {
-  probe?: string | null;
-  target: TargetSelection;
-  address: number;
-  length: number;
-  outputPath: string;
-}
-
 export interface EraseRange {
   start: number;
   end: number;
@@ -99,22 +75,10 @@ export interface EraseRequest {
   range?: EraseRange | null;
 }
 
-export interface TargetActionRequest {
-  probe?: string | null;
-  target: TargetSelection;
-  haltAfterReset: boolean;
-}
-
 export interface MemoryReadResult {
   address: number;
   length: number;
   dataHex: string;
-}
-
-export interface TargetStatus {
-  chip: string;
-  core: number;
-  halted: boolean;
 }
 
 export interface Profile {
@@ -172,30 +136,8 @@ export async function readMemory(
   return invokeCommand("read_memory", { request });
 }
 
-export async function writeMemory(
-  request: WriteMemoryRequest,
-): Promise<string> {
-  return invokeCommand("write_memory", { request });
-}
-
-export async function dumpMemory(request: DumpMemoryRequest): Promise<string> {
-  return invokeCommand("dump_memory", { request });
-}
-
 export async function eraseTarget(request: EraseRequest): Promise<string> {
   return invokeCommand("erase_target", { request });
-}
-
-export async function resetTarget(
-  request: TargetActionRequest,
-): Promise<string> {
-  return invokeCommand("reset_target", { request });
-}
-
-export async function attachTarget(
-  request: TargetActionRequest,
-): Promise<TargetStatus> {
-  return invokeCommand("attach_target", { request });
 }
 
 export async function loadProfiles(): Promise<Profile[]> {
