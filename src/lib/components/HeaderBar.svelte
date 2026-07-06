@@ -4,8 +4,8 @@
   import Popover from "./Popover.svelte";
   import UpdateDialog from "./UpdateDialog.svelte";
   import type { ThemePreference } from "$lib/state/theme.svelte";
+  import appIcon from "$lib/assets/app-icon.png";
   import downloadIcon from "$lib/assets/icons/download.svg?url";
-  import flashIcon from "$lib/assets/icons/flash.svg?url";
   import infoIcon from "$lib/assets/icons/info.svg?url";
   import sunIcon from "$lib/assets/icons/sun.svg?url";
   import moonIcon from "$lib/assets/icons/moon.svg?url";
@@ -36,9 +36,9 @@
 </script>
 
 <header class="header">
-  <div class="brand">
-    <span class="mark"><Icon src={flashIcon} size={16} /></span>
-    <strong>FlashDesk</strong>
+  <div class="brand" aria-label="FlashDesk">
+    <img class="brand-icon" src={appIcon} alt="" aria-hidden="true" />
+    <span class="brand-label">固件烧录工具</span>
   </div>
 
   <div class="actions">
@@ -122,21 +122,20 @@
     flex-shrink: 0;
   }
 
-  .mark {
-    display: grid;
-    width: 30px;
-    height: 30px;
-    place-items: center;
+  .brand-icon {
+    width: 34px;
+    height: 34px;
     border-radius: var(--radius-sm);
-    background: var(--color-accent);
-    color: var(--color-text-inverse);
+    display: block;
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--color-text) 10%, transparent);
   }
 
-  .brand strong {
+  .brand-label {
     color: var(--color-text);
-    font-size: var(--text-md);
+    font-size: var(--text-sm);
     font-weight: 800;
-    letter-spacing: -0.01em;
+    letter-spacing: 0;
+    white-space: nowrap;
   }
 
   .actions {

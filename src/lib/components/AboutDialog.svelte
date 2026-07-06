@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
   import appPackage from "../../../package.json";
+  import appIcon from "$lib/assets/app-icon.png";
   import infoIcon from "$lib/assets/icons/info.svg?url";
   import xIcon from "$lib/assets/icons/x.svg?url";
 
@@ -82,9 +83,7 @@
 
       <div class="about-body">
         <div class="about-hero">
-          <div class="logo-placeholder" aria-label="Logo placeholder">
-            <span>LOGO</span>
-          </div>
+          <img class="app-icon" src={appIcon} alt="FlashDesk icon" />
           <div class="app-copy">
             <span class="ui-badge ui-badge--accent">v{appPackage.version}</span>
             <strong>FlashDesk</strong>
@@ -184,18 +183,13 @@
     gap: var(--space-4);
   }
 
-  .logo-placeholder {
-    display: grid;
+  .app-icon {
     width: 82px;
     height: 82px;
-    place-items: center;
-    border: 1px dashed var(--color-border-strong);
     border-radius: var(--radius-lg);
-    background: var(--color-surface-inset);
-    color: var(--color-text-faint);
-    font-size: var(--text-2xs);
-    font-weight: 900;
-    letter-spacing: 0.08em;
+    box-shadow:
+      0 10px 24px color-mix(in srgb, var(--color-accent) 18%, transparent),
+      0 1px 2px color-mix(in srgb, var(--color-text) 10%, transparent);
   }
 
   .app-copy {
