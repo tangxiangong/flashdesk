@@ -1,5 +1,10 @@
-// Tauri doesn't have a Node.js server to do proper SSR
-// so we use adapter-static with a fallback to index.html to put the site in SPA mode
-// See: https://svelte.dev/docs/kit/single-page-apps
-// See: https://v2.tauri.app/start/frontend/sveltekit/ for more info
+/**
+ * 关闭 SvelteKit 服务端渲染，让 Tauri 桌面端以静态 SPA 方式加载前端。
+ *
+ * Tauri 没有 Node.js 服务端可用于常规 SSR，因此项目使用 adapter-static
+ * 和 index.html fallback。
+ *
+ * @see https://svelte.dev/docs/kit/single-page-apps
+ * @see https://v2.tauri.app/start/frontend/sveltekit/
+ */
 export const ssr = false;

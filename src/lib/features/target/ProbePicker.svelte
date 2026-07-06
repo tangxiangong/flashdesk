@@ -3,7 +3,13 @@
   import refreshIcon from "$lib/assets/icons/refresh.svg?url";
   import { target } from "$lib/state/target.svelte";
 
-  let { close }: { close: () => void } = $props();
+  /** 探针选择器 props。 */
+  interface Props {
+    /** 关闭当前弹层的回调。 */
+    close: () => void;
+  }
+
+  let { close }: Props = $props();
 
   $effect(() => {
     if (target.probes.length === 0 && !target.probesLoading) {

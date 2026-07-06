@@ -1,7 +1,13 @@
 <script lang="ts">
   import { jobs, stageLabel, stageTone } from "$lib/state/jobs.svelte";
 
-  let { jobId }: { jobId: string | null } = $props();
+  /** 任务进度组件 props。 */
+  interface Props {
+    /** 要展示的后台任务 ID；为空时不渲染进度。 */
+    jobId: string | null;
+  }
+
+  let { jobId }: Props = $props();
 
   let latest = $derived(jobs.latestFor(jobId));
   let tone = $derived(latest ? stageTone(latest.stage) : "neutral");

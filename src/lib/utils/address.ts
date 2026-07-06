@@ -1,6 +1,7 @@
 const DECIMAL_ADDRESS = /^(0|[1-9][0-9]*)$/;
 const HEX_ADDRESS = /^0x[0-9a-f]+$/i;
 
+/** 解析十进制或 `0x` 前缀十六进制地址输入。 */
 export function parseAddressInput(value: string): number | null {
   const trimmed = value.trim();
   if (!trimmed) return null;

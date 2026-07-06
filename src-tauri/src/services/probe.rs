@@ -1,11 +1,16 @@
-use crate::error::{AppError, Result};
-use crate::models::{ConnectRequest, ConnectionInfo, ProbeSummary, WireProtocol};
-use probe_rs::Permissions;
-use probe_rs::probe::{
-    DebugProbeInfo, DebugProbeSelector, DebugProbeSelectorParseError,
-    WireProtocol as ProbeWireProtocol, list::Lister,
+use crate::{
+    error::{AppError, Result},
+    models::{ConnectRequest, ConnectionInfo, ProbeSummary, WireProtocol},
+};
+use probe_rs::{
+    Permissions,
+    probe::{
+        DebugProbeInfo, DebugProbeSelector, DebugProbeSelectorParseError,
+        WireProtocol as ProbeWireProtocol, list::Lister,
+    },
 };
 
+/// 列出当前系统可见的调试探针。
 pub fn list_probes() -> Result<Vec<ProbeSummary>> {
     Ok(Lister::new()
         .list_all()
@@ -14,12 +19,14 @@ pub fn list_probes() -> Result<Vec<ProbeSummary>> {
         .collect())
 }
 
+/// 解析前端探针选择；为空时要求系统中只有一个探针。
 pub fn require_probe(identifier: Option<&str>) -> Result<String> {
     let probes = list_probes()?;
 
     select_probe_identifier(identifier, &probes)
 }
 
+/// 打开探针会话以验证目标连接参数。
 pub fn connect_target(request: ConnectRequest) -> Result<ConnectionInfo> {
     if request.target.speed_khz == Some(0) {
         return Err(AppError::InvalidUserInput {

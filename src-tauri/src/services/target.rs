@@ -1,11 +1,14 @@
-use crate::error::{AppError, Result};
-use crate::models::{MemoryAccessInfo, MemoryRegionKind, MemoryRegionLayout};
+use crate::{
+    error::{AppError, Result},
+    models::{MemoryAccessInfo, MemoryRegionKind, MemoryRegionLayout},
+};
 use probe_rs::config::{MemoryRegion, Registry};
 use std::collections::HashSet;
 
 const DEFAULT_CHIP_LIMIT: usize = 20;
 const MAX_CHIP_LIMIT: usize = 100;
 
+/// 根据关键字搜索 probe-rs 内置芯片型号。
 pub fn search_chips(query: &str, limit: usize) -> Result<Vec<String>> {
     let trimmed = query.trim();
     if trimmed.is_empty() {
@@ -20,6 +23,7 @@ pub fn search_chips(query: &str, limit: usize) -> Result<Vec<String>> {
     Ok(dedupe_chip_names(chips).into_iter().take(limit).collect())
 }
 
+/// 解析目标芯片型号；为空时返回用户输入错误。
 pub fn require_chip(chip: Option<&str>) -> Result<String> {
     chip.map(str::trim)
         .filter(|value| !value.is_empty())
@@ -29,6 +33,7 @@ pub fn require_chip(chip: Option<&str>) -> Result<String> {
         })
 }
 
+/// 查询指定芯片型号的内存布局。
 pub fn target_memory_map(chip: &str) -> Result<Vec<MemoryRegionLayout>> {
     let chip = require_chip(Some(chip))?;
     let target = Registry::from_builtin_families()

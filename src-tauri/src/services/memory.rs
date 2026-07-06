@@ -1,20 +1,25 @@
-use crate::error::{AppError, Result};
-use crate::models::{
-    EraseRequest, JobId, JobKind, JobStage, MemoryReadResult, MemoryRequest, TargetSelection,
-    WireProtocol,
+use crate::{
+    error::{AppError, Result},
+    models::{
+        EraseRequest, JobId, JobKind, JobStage, MemoryReadResult, MemoryRequest, TargetSelection,
+        WireProtocol,
+    },
+    services::jobs::{emit_job_event, new_job_id},
+    services::probe::require_probe,
 };
-use crate::services::jobs::{emit_job_event, new_job_id};
-use crate::services::probe::require_probe;
-use probe_rs::flashing::{FlashProgress, erase_all};
-use probe_rs::probe::{
-    DebugProbeSelector, DebugProbeSelectorParseError, WireProtocol as ProbeWireProtocol,
-    list::Lister,
+use probe_rs::{
+    Permissions, Session,
+    flashing::{FlashProgress, erase_all},
+    probe::{
+        DebugProbeSelector, DebugProbeSelectorParseError, WireProtocol as ProbeWireProtocol,
+        list::Lister,
+    },
 };
-use probe_rs::{Permissions, Session};
 use tauri::AppHandle;
 
 const MAX_MEMORY_TRANSFER_BYTES: u32 = 4096;
 
+/// 同步读取目标内存区域。
 pub fn read_memory(request: MemoryRequest) -> Result<MemoryReadResult> {
     validate_memory_range(request.address, request.length)?;
     let mut session = open_session(&request.target, request.probe.as_deref())?;
@@ -31,6 +36,7 @@ pub fn read_memory(request: MemoryRequest) -> Result<MemoryReadResult> {
     })
 }
 
+/// 创建后台整片擦除任务并返回任务 ID。
 pub fn erase_target(app: &AppHandle, request: EraseRequest) -> Result<JobId> {
     let job_id = new_job_id();
     emit_job_event(

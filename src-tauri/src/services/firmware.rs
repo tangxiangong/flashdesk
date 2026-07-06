@@ -1,7 +1,10 @@
-use crate::error::{AppError, Result};
-use crate::models::{FirmwareFormat, FirmwareInput};
+use crate::{
+    error::{AppError, Result},
+    models::{FirmwareFormat, FirmwareInput},
+};
 use std::path::Path;
 
+/// 根据文件扩展名推断固件格式。
 pub fn detect_format(path: &Path) -> Result<FirmwareFormat> {
     let extension = path
         .extension()
@@ -21,6 +24,7 @@ pub fn detect_format(path: &Path) -> Result<FirmwareFormat> {
     }
 }
 
+/// 校验固件输入并返回最终采用的固件格式。
 pub fn validate_firmware(input: &FirmwareInput) -> Result<FirmwareFormat> {
     if input.path.trim().is_empty() {
         return Err(AppError::InvalidUserInput {
@@ -46,6 +50,7 @@ pub fn validate_firmware(input: &FirmwareInput) -> Result<FirmwareFormat> {
     Ok(detected)
 }
 
+/// 解析用户输入的十进制或 `0x` 前缀十六进制地址。
 pub fn parse_address(value: &str) -> Result<u64> {
     let trimmed = value.trim();
     if trimmed.is_empty() {

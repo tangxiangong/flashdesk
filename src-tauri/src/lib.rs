@@ -1,6 +1,9 @@
 mod commands;
+/// 应用级错误类型和前端可序列化错误响应。
 pub mod error;
+/// Rust 与前端共享的请求、响应和状态模型。
 pub mod models;
+/// probe-rs、存储、任务和固件处理等后端服务层。
 pub mod services;
 
 #[cfg(target_os = "macos")]
@@ -12,6 +15,10 @@ const MENU_EVENT_ABOUT: &str = "flashdesk://menu/about";
 #[cfg(target_os = "macos")]
 const MENU_EVENT_CHECK_UPDATE: &str = "flashdesk://menu/check-update";
 
+/// 构建桌面端使用的最小 macOS 应用菜单。
+///
+/// 默认 Tauri 菜单已关闭，这里只保留关于、检查更新和系统窗口操作，
+/// 同时继续支持 Cmd+Q、Cmd+M 等原生快捷键。
 #[cfg(target_os = "macos")]
 fn minimal_macos_menu<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
@@ -52,6 +59,9 @@ fn minimal_macos_menu<R: tauri::Runtime>(
     Menu::with_items(app, &[&app_menu, &window_menu])
 }
 
+/// 将原生 macOS 菜单选择桥接到前端窗口状态。
+///
+/// 更新和关于窗口仍由前端维护，Rust 只把稳定菜单 ID 映射为 Tauri 事件。
 #[cfg(target_os = "macos")]
 fn handle_macos_menu_event<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
@@ -68,6 +78,7 @@ fn handle_macos_menu_event<R: tauri::Runtime>(
     let _ = app.emit(event_name, ());
 }
 
+/// 启动 Tauri 桌面应用。
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()

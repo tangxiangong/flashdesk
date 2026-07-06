@@ -1,15 +1,17 @@
 <script lang="ts" generics="T extends string">
-  let {
-    value,
-    options,
-    onchange,
-    disabled = false,
-  }: {
+  /** Segmented 组件 props。 */
+  interface Props<T extends string> {
+    /** 当前选中的值。 */
     value: T;
+    /** 可选项列表。 */
     options: Array<{ value: T; label: string }>;
+    /** 选项变化回调。 */
     onchange: (value: T) => void;
+    /** 是否禁用所有选项。 */
     disabled?: boolean;
-  } = $props();
+  }
+
+  let { value, options, onchange, disabled = false }: Props<T> = $props();
 </script>
 
 <div class="segmented" role="tablist">

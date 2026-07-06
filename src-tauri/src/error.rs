@@ -1,58 +1,86 @@
 use serde::Serialize;
 use std::path::Path;
 
+/// 应用内部统一错误结果类型。
 pub type Result<T> = std::result::Result<T, AppError>;
 
+/// 前端可稳定匹配的错误码。
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorCode {
+    /// 未找到可用探针。
     ProbeNotFound,
+    /// 目标芯片连接成功但识别失败。
     TargetIdentifyFailed,
+    /// 固件文件扩展名或格式不受支持。
     UnsupportedFirmwareFormat,
+    /// BIN 固件缺少基地址。
     MissingBinBaseAddress,
+    /// 固件地址格式、对齐或范围无效。
     InvalidFirmwareAddress,
+    /// probe-rs 底层操作失败。
     ProbeRsFailure,
+    /// 文件系统读写失败。
     IoFailure,
+    /// 用户输入未通过校验。
     InvalidUserInput,
+    /// 本地配置、历史或日志存储失败。
     StorageFailure,
+    /// 当前已有烧录或擦除任务在运行。
     JobAlreadyRunning,
 }
 
+/// 序列化给前端的统一错误响应。
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ErrorResponse {
+    /// 稳定错误码，供前端分支处理。
     pub code: ErrorCode,
+    /// 用户可见的主错误信息。
     pub message: String,
     /// Frontend-safe diagnostic detail. Raw probe-rs logs and filesystem internals belong in job logs, not here.
     pub detail: Option<String>,
+    /// 用户可见的恢复建议。
     pub recovery: String,
 }
 
+/// 应用内部错误类型。
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    /// 未找到可用探针。
     #[error("未找到烧录器")]
     ProbeNotFound,
+    /// 目标芯片识别失败。
     #[error("无法识别目标芯片")]
     TargetIdentifyFailed { detail: String },
+    /// 固件格式不受支持。
     #[error("不支持的固件格式")]
     UnsupportedFirmwareFormat { path: String },
+    /// BIN 固件缺少基地址。
     #[error("BIN 文件必须填写基地址")]
     MissingBinBaseAddress,
+    /// 固件地址无效。
     #[error("固件地址无效")]
     InvalidFirmwareAddress { detail: String },
+    /// probe-rs 底层操作失败。
     #[error("probe-rs 操作失败")]
     ProbeRsFailure { detail: String },
+    /// 文件系统读写失败。
     #[error("文件读写失败")]
     IoFailure(#[from] std::io::Error),
+    /// 用户输入无效。
     #[error("用户输入无效")]
     InvalidUserInput { detail: String },
+    /// 本地配置、历史或日志存储失败。
     #[error("本地配置存储失败")]
     StorageFailure { detail: String },
+    /// 当前已有异步任务在运行。
     #[error("已有任务正在运行")]
     JobAlreadyRunning,
 }
 
 impl AppError {
+    /// 转换为前端可安全展示的错误响应。
     pub fn to_response(&self) -> ErrorResponse {
         match self {
             Self::ProbeNotFound => ErrorResponse {

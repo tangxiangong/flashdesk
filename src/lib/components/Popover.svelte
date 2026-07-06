@@ -1,19 +1,27 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
 
+  /** Popover 组件 props。 */
+  interface Props {
+    /** 是否打开弹层，支持双向绑定。 */
+    open?: boolean;
+    /** 弹层相对触发器的水平对齐方式。 */
+    align?: "start" | "end";
+    /** 弹层宽度，单位 px。 */
+    width?: number;
+    /** 触发器片段，接收 toggle 和 open 状态。 */
+    trigger: Snippet<[{ toggle: () => void; open: boolean }]>;
+    /** 弹层内容片段，接收 close 回调。 */
+    content: Snippet<[{ close: () => void }]>;
+  }
+
   let {
     open = $bindable(false),
     align = "start",
     width = 320,
     trigger,
     content,
-  }: {
-    open?: boolean;
-    align?: "start" | "end";
-    width?: number;
-    trigger: Snippet<[{ toggle: () => void; open: boolean }]>;
-    content: Snippet<[{ close: () => void }]>;
-  } = $props();
+  }: Props = $props();
 
   let root: HTMLDivElement | undefined;
 

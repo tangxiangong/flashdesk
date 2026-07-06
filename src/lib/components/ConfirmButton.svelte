@@ -3,17 +3,24 @@
   import alertIcon from "$lib/assets/icons/alert.svg?url";
   import xIcon from "$lib/assets/icons/x.svg?url";
 
+  /** 二次确认按钮 props。 */
+  interface Props {
+    /** 初始按钮文案。 */
+    label: string;
+    /** 进入确认态后的按钮文案。 */
+    confirmLabel?: string;
+    /** 是否禁用按钮。 */
+    disabled?: boolean;
+    /** 用户二次确认后的回调。 */
+    onconfirm: () => void;
+  }
+
   let {
     label,
     confirmLabel = "确认",
     disabled = false,
     onconfirm,
-  }: {
-    label: string;
-    confirmLabel?: string;
-    disabled?: boolean;
-    onconfirm: () => void;
-  } = $props();
+  }: Props = $props();
 
   let armed = $state(false);
   let timer: ReturnType<typeof setTimeout> | undefined;

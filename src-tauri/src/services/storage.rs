@@ -1,58 +1,74 @@
-use crate::error::{AppError, Result};
-use crate::models::{HistoryEntry, Profile, RecentFile};
-use std::fs::{self, OpenOptions};
-use std::io::Write;
-use std::path::{Path, PathBuf};
+use crate::{
+    error::{AppError, Result},
+    models::{HistoryEntry, Profile, RecentFile},
+};
+use std::{
+    fs::{self, OpenOptions},
+    io::Write,
+    path::{Path, PathBuf},
+};
 
+/// 应用本地存储文件路径集合。
 #[derive(Debug, Clone)]
 pub struct StoragePaths {
     root: PathBuf,
 }
 
 impl StoragePaths {
+    /// 使用指定根目录创建存储路径集合。
     pub fn new(root: PathBuf) -> Self {
         Self { root }
     }
 
+    /// 用户烧录配置 JSON 文件路径。
     pub fn profiles(&self) -> PathBuf {
         self.root.join("profiles.json")
     }
 
+    /// 最近文件 JSON 文件路径。
     pub fn recent_files(&self) -> PathBuf {
         self.root.join("recent-files.json")
     }
 
+    /// 历史记录 JSONL 文件路径。
     pub fn history(&self) -> PathBuf {
         self.root.join("history.jsonl")
     }
 
+    /// 任务日志目录路径。
     pub fn logs_dir(&self) -> PathBuf {
         self.root.join("logs")
     }
 }
 
+/// 确保存储根目录和日志目录存在。
 pub fn ensure_storage(paths: &StoragePaths) -> Result<()> {
     fs::create_dir_all(&paths.root).map_err(|err| storage_io_error("create storage root", err))?;
     fs::create_dir_all(paths.logs_dir()).map_err(|err| storage_io_error("create logs dir", err))?;
     Ok(())
 }
 
+/// 读取用户保存的烧录配置列表。
 pub fn load_profiles(paths: &StoragePaths) -> Result<Vec<Profile>> {
     read_json_array(&paths.profiles())
 }
 
+/// 覆盖写入用户保存的烧录配置列表。
 pub fn save_profiles(paths: &StoragePaths, profiles: &[Profile]) -> Result<()> {
     write_json_pretty(&paths.profiles(), profiles)
 }
 
+/// 读取最近使用的固件文件列表。
 pub fn load_recent_files(paths: &StoragePaths) -> Result<Vec<RecentFile>> {
     read_json_array(&paths.recent_files())
 }
 
+/// 覆盖写入最近使用的固件文件列表。
 pub fn save_recent_files(paths: &StoragePaths, recent_files: &[RecentFile]) -> Result<()> {
     write_json_pretty(&paths.recent_files(), recent_files)
 }
 
+/// 追加一条任务历史记录。
 pub fn append_history(paths: &StoragePaths, entry: &HistoryEntry) -> Result<()> {
     ensure_storage(paths)?;
     let serialized = serde_json::to_string(entry).map_err(|err| AppError::StorageFailure {
@@ -67,6 +83,7 @@ pub fn append_history(paths: &StoragePaths, entry: &HistoryEntry) -> Result<()> 
     Ok(())
 }
 
+/// 写入任务日志并返回日志文件路径。
 pub fn write_job_log(paths: &StoragePaths, job_id: &str, content: &str) -> Result<PathBuf> {
     ensure_storage(paths)?;
     let filename = sanitize_filename::sanitize(format!("{job_id}.log"));

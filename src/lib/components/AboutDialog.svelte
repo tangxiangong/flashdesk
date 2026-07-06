@@ -5,11 +5,13 @@
   import infoIcon from "$lib/assets/icons/info.svg?url";
   import xIcon from "$lib/assets/icons/x.svg?url";
 
-  let {
-    open = $bindable(false),
-  }: {
+  /** 关于窗口 props。 */
+  interface Props {
+    /** 是否打开窗口，支持双向绑定。 */
     open?: boolean;
-  } = $props();
+  }
+
+  let { open = $bindable(false) }: Props = $props();
 
   const appDescription = "用于固件烧录流程的桌面工具。";
 

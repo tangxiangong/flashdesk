@@ -3,7 +3,13 @@
   import searchIcon from "$lib/assets/icons/search.svg?url";
   import { target } from "$lib/state/target.svelte";
 
-  let { close }: { close: () => void } = $props();
+  /** 芯片型号选择器 props。 */
+  interface Props {
+    /** 关闭当前弹层的回调。 */
+    close: () => void;
+  }
+
+  let { close }: Props = $props();
 
   let draft = $state(target.chip);
   let debounceHandle: ReturnType<typeof setTimeout> | undefined;

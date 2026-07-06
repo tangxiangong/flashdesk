@@ -1,11 +1,14 @@
-use crate::error::{AppError, Result};
-use crate::models::{FirmwareFormat, FlashRequest, JobId, JobKind, JobStage, WireProtocol};
-use crate::services::firmware::validate_firmware;
-use crate::services::jobs::{emit_job_event, new_job_id};
-use crate::services::probe::require_probe;
+use crate::{
+    error::{AppError, Result},
+    models::{FirmwareFormat, FlashRequest, JobId, JobKind, JobStage, WireProtocol},
+    services::firmware::validate_firmware,
+    services::jobs::{emit_job_event, new_job_id},
+    services::probe::require_probe,
+};
 use std::path::Path;
 use tauri::AppHandle;
 
+/// 校验烧录请求并返回已确认的固件格式。
 pub fn validate_flash_request(request: &FlashRequest) -> Result<FirmwareFormat> {
     if request.options.skip_erase && request.options.allow_erase_all {
         return Err(AppError::InvalidUserInput {
@@ -35,6 +38,7 @@ fn failed_message(error: &AppError) -> String {
     }
 }
 
+/// 创建后台烧录任务并返回任务 ID。
 pub fn flash_firmware(app: &AppHandle, request: FlashRequest) -> Result<JobId> {
     let job_id = new_job_id();
 
