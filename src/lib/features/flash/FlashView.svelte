@@ -520,9 +520,21 @@
 
   .switch-list {
     display: grid;
-    gap: var(--space-1);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--space-6);
+    row-gap: var(--space-2);
     border-top: 1px solid var(--color-border);
     padding-top: var(--space-3);
+  }
+
+  .switch-list :global(.ui-switch-row) {
+    justify-content: flex-start;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .switch-list :global(.ui-switch-copy) {
+    flex: 0 1 auto;
   }
 
   .cta-button {
@@ -543,6 +555,12 @@
 
   @media (max-width: 560px) {
     .options-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .switch-list {
       grid-template-columns: 1fr;
     }
   }
