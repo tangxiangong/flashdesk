@@ -1,10 +1,12 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
+  import AboutDialog from "./AboutDialog.svelte";
   import Popover from "./Popover.svelte";
   import UpdateDialog from "./UpdateDialog.svelte";
   import type { ThemePreference } from "$lib/state/theme.svelte";
   import downloadIcon from "$lib/assets/icons/download.svg?url";
   import flashIcon from "$lib/assets/icons/flash.svg?url";
+  import infoIcon from "$lib/assets/icons/info.svg?url";
   import sunIcon from "$lib/assets/icons/sun.svg?url";
   import moonIcon from "$lib/assets/icons/moon.svg?url";
   import monitorIcon from "$lib/assets/icons/monitor.svg?url";
@@ -13,6 +15,7 @@
   import { updates } from "$lib/state/updates.svelte";
 
   let themeOpen = $state(false);
+  let aboutOpen = $state(false);
 
   const themeOptions: {
     value: ThemePreference;
@@ -47,6 +50,16 @@
       onclick={() => updates.openPanel()}
     >
       <Icon src={downloadIcon} size={16} />
+    </button>
+
+    <button
+      type="button"
+      class="ui-btn ui-btn--ghost ui-btn--icon"
+      title="关于"
+      aria-label="关于"
+      onclick={() => (aboutOpen = true)}
+    >
+      <Icon src={infoIcon} size={16} />
     </button>
 
     <Popover bind:open={themeOpen} align="end" width={176}>
@@ -89,6 +102,7 @@
 </header>
 
 <UpdateDialog />
+<AboutDialog bind:open={aboutOpen} />
 
 <style>
   .header {
