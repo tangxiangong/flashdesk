@@ -85,16 +85,14 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # --- 可选：updater 签名（接入 updater 插件后再取消注释）---
-          # TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          # TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           # 直接调用 Tauri CLI，避免依赖 package.json 中的 tauri 脚本细节。
           tauriScript: bunx tauri
           # 把产物上传到「当前这个已发布的 Release」，不新建 Release。
           releaseId: ${{ github.event.release.id }}
-          # 项目尚未接入 updater 插件，关闭 latest.json 生成。
-          includeUpdaterJson: false
+          includeUpdaterJson: true
           assetNamePattern: "FlashDesk_${{ github.event.release.tag_name }}_${{ matrix.arch }}[ext]"
           args: --target ${{ matrix.rust_target }}
 

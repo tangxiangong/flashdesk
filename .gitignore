@@ -12,5 +12,6 @@ vite.config.ts.timestamp-*
 # Local design and brainstorming notes
 docs/superpowers/
 .superpowers/
+.tauri/
 
 .vscode/
