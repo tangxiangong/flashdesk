@@ -14,7 +14,7 @@
   import { parseAddressInput } from "$lib/utils/address";
 
   let address = $state("0x00000000");
-  let length = $state(256);
+  let length = $state(128);
   let addressEdited = $state(false);
   let reading = $state(false);
   let readError = $state<string | null>(null);
