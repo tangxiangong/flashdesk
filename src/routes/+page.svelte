@@ -26,8 +26,6 @@
     <div class="workspace">
       <FlashView />
       <ToolsPanel />
-
-      <p class="footnote">基于 probe-rs · 面向嵌入式开发的固件烧录工具</p>
     </div>
   </main>
 </div>
@@ -57,13 +55,6 @@
     display: grid;
     gap: var(--space-6);
     width: 100%;
-  }
-
-  .footnote {
-    margin: var(--space-2) 0 0;
-    color: var(--color-text-faint);
-    font-size: var(--text-xs);
-    text-align: center;
   }
 
   @media (max-width: 640px) {
