@@ -1,9 +1,11 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import Icon from "./Icon.svelte";
   import AboutDialog from "./AboutDialog.svelte";
   import Popover from "./Popover.svelte";
   import UpdateDialog from "./UpdateDialog.svelte";
   import type { ThemePreference } from "$lib/state/theme.svelte";
+  import { listenToAppMenuEvents } from "$lib/api/tauri";
   import appIcon from "$lib/assets/app-icon.png";
   import downloadIcon from "$lib/assets/icons/download.svg?url";
   import infoIcon from "$lib/assets/icons/info.svg?url";
@@ -33,6 +35,20 @@
       "系统"
     );
   }
+
+  onMount(() => {
+    const unlisten = listenToAppMenuEvents((action) => {
+      if (action === "about") {
+        aboutOpen = true;
+      } else if (action === "check-update") {
+        updates.openPanel();
+      }
+    });
+
+    return () => {
+      void unlisten.then((dispose) => dispose());
+    };
+  });
 </script>
 
 <header class="header">

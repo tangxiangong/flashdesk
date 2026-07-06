@@ -9,6 +9,7 @@ declare global {
 
 export type FirmwareFormat = "elf" | "hex" | "bin";
 export type WireProtocol = "swd" | "jtag";
+export type AppMenuAction = "about" | "check-update";
 export type JobKind = "flash" | "erase";
 export type JobStage =
   | "queued"
@@ -227,4 +228,25 @@ export function listenToJobEvents(
   }
 
   return listen<JobEvent>("job_event", (event) => handler(event.payload));
+}
+
+export async function listenToAppMenuEvents(
+  handler: (action: AppMenuAction) => void,
+): Promise<UnlistenFn> {
+  if (!isTauriRuntime()) {
+    return () => undefined;
+  }
+
+  const unlistenAbout = await listen("flashdesk://menu/about", () =>
+    handler("about"),
+  );
+  const unlistenCheckUpdate = await listen(
+    "flashdesk://menu/check-update",
+    () => handler("check-update"),
+  );
+
+  return () => {
+    void unlistenAbout();
+    void unlistenCheckUpdate();
+  };
 }
