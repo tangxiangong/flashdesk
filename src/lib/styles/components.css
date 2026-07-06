@@ -8,7 +8,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: var(--shadow-panel);
+  box-shadow: var(--shadow-sm);
 }
 
 .ui-inset {
@@ -23,16 +23,16 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  min-height: 34px;
+  min-height: 38px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: var(--color-surface-muted);
+  background: var(--color-surface);
   color: var(--color-text);
   cursor: pointer;
   font: inherit;
   font-size: var(--text-sm);
   font-weight: 600;
-  padding: 0 var(--space-3);
+  padding: 0 var(--space-4);
   transition:
     background var(--duration-base) var(--ease-out),
     border-color var(--duration-base) var(--ease-out),
@@ -58,6 +58,7 @@
   border-color: var(--color-accent);
   background: var(--color-accent);
   color: var(--color-text-inverse);
+  box-shadow: var(--shadow-xs);
 }
 
 .ui-btn--primary:hover:not(:disabled) {
@@ -85,19 +86,23 @@
 
 .ui-btn--danger:hover:not(:disabled) {
   background: var(--color-danger);
+  border-color: var(--color-danger);
   color: var(--color-text-inverse);
 }
 
 .ui-btn--block {
   width: 100%;
-  min-height: 44px;
+  min-height: 48px;
   font-size: var(--text-base);
+  font-weight: 700;
+  border-radius: var(--radius-md);
 }
 
 .ui-btn--icon {
-  min-height: 32px;
-  min-width: 32px;
+  min-height: 34px;
+  min-width: 34px;
   padding: 0;
+  border-radius: var(--radius-sm);
 }
 
 /* ---- Fields -------------------------------------------------------------*/
@@ -106,10 +111,11 @@
   gap: var(--space-2);
 }
 
-.ui-field > span:first-child {
+.ui-field > span:first-child,
+.ui-label {
   color: var(--color-text-muted);
   font-size: var(--text-xs);
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.01em;
 }
 
@@ -118,7 +124,7 @@
 .ui-textarea {
   width: 100%;
   min-width: 0;
-  min-height: 36px;
+  min-height: 38px;
   box-sizing: border-box;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -141,6 +147,8 @@
 .ui-select:focus-visible,
 .ui-textarea:focus-visible {
   border-color: var(--color-accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
 }
 
 .ui-input:disabled,
@@ -165,8 +173,8 @@
   background: var(--color-surface-muted);
   color: var(--color-text-muted);
   font-size: var(--text-xs);
-  font-weight: 600;
-  padding: 4px 10px;
+  font-weight: 700;
+  padding: 4px 11px;
   white-space: nowrap;
 }
 
@@ -198,15 +206,15 @@
 .ui-dot {
   --dot-color: var(--color-text-faint);
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--dot-color);
   flex-shrink: 0;
 }
 
 .ui-dot--pulse {
-  animation: ui-pulse 1.4s var(--ease-out) infinite;
+  animation: ui-pulse 1.6s var(--ease-out) infinite;
 }
 
 @keyframes ui-pulse {
@@ -215,30 +223,30 @@
     box-shadow: 0 0 0 0 color-mix(in srgb, var(--dot-color) 45%, transparent);
   }
   50% {
-    box-shadow: 0 0 0 4px transparent;
+    box-shadow: 0 0 0 5px transparent;
   }
 }
 
-/* ---- Tabs ------------------------------------------------------------- */
+/* ---- Segmented control / tabs ------------------------------------------- */
 .ui-tabs {
   display: inline-flex;
   gap: 2px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface-inset);
-  padding: 2px;
+  padding: 3px;
 }
 
 .ui-tab {
   border: 0;
-  border-radius: calc(var(--radius-md) - 2px);
+  border-radius: calc(var(--radius-md) - 3px);
   background: transparent;
   color: var(--color-text-muted);
   cursor: pointer;
   font: inherit;
   font-size: var(--text-sm);
   font-weight: 600;
-  padding: 6px 14px;
+  padding: 7px 15px;
   transition:
     background var(--duration-base) var(--ease-out),
     color var(--duration-base) var(--ease-out);
@@ -251,7 +259,7 @@
 .ui-tab[aria-selected="true"] {
   background: var(--color-surface);
   color: var(--color-text);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-xs);
 }
 
 .ui-tab--danger[aria-selected="true"] {
@@ -264,19 +272,20 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
-  min-height: 38px;
+  gap: var(--space-4);
+  min-height: 40px;
 }
 
 .ui-switch-row .ui-switch-copy {
   display: grid;
   gap: 2px;
+  min-width: 0;
 }
 
 .ui-switch-row .ui-switch-copy strong {
   color: var(--color-text);
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .ui-switch-row .ui-switch-copy span {
@@ -289,8 +298,8 @@
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
-  width: 38px;
-  height: 22px;
+  width: 40px;
+  height: 24px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
   background: var(--color-surface-inset);
@@ -303,8 +312,8 @@
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: var(--color-text-faint);
   transition:
@@ -314,17 +323,22 @@
 
 .ui-switch[aria-checked="true"] {
   border-color: var(--color-accent);
-  background: var(--color-accent-soft);
+  background: var(--color-accent);
 }
 
 .ui-switch[aria-checked="true"]::after {
   transform: translateX(16px);
-  background: var(--color-accent);
+  background: var(--color-text-inverse);
 }
 
 .ui-switch:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+/* ---- Section headings ---------------------------------------------------*/
+.ui-panel-pad {
+  padding: var(--space-5) var(--space-5) var(--space-6);
 }
 
 /* ---- Layout helpers ------------------------------------------------------*/
@@ -367,7 +381,7 @@
   gap: var(--space-2);
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
-  padding: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   line-height: 1.5;
 }
 

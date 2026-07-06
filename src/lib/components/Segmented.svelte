@@ -34,19 +34,19 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     background: var(--color-surface-inset);
-    padding: 2px;
+    padding: 3px;
   }
 
   .segment {
     border: 0;
-    border-radius: calc(var(--radius-md) - 2px);
+    border-radius: calc(var(--radius-md) - 3px);
     background: transparent;
     color: var(--color-text-muted);
     cursor: pointer;
     font: inherit;
     font-size: var(--text-sm);
     font-weight: 600;
-    min-height: 30px;
+    min-height: 32px;
     padding: 0 var(--space-3);
     transition:
       background var(--duration-base) var(--ease-out),
@@ -60,7 +60,7 @@
   .segment[aria-selected="true"] {
     background: var(--color-surface);
     color: var(--color-accent-strong);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+    box-shadow: var(--shadow-xs);
   }
 
   .segment:disabled {

@@ -30,13 +30,20 @@
   }
 </script>
 
-<div class="erase-action">
-  <ConfirmButton
-    label="擦除"
-    confirmLabel="确认擦除"
-    disabled={!target.ready || eraseRunning}
-    onconfirm={() => void doErase()}
-  />
+<div class="erase-tool">
+  <p class="erase-warning">
+    <Icon src={alertIcon} size={14} />
+    此操作会清除芯片上的全部固件数据，且无法撤销。
+  </p>
+
+  <div class="erase-action">
+    <ConfirmButton
+      label="擦除整片芯片"
+      confirmLabel="确认擦除，无法撤销"
+      disabled={!target.ready || eraseRunning}
+      onconfirm={() => void doErase()}
+    />
+  </div>
 
   <JobProgress jobId={eraseJobId} />
 
@@ -45,29 +52,39 @@
       <Icon src={alertIcon} size={14} />{eraseError}
     </p>
   {/if}
+
+  {#if !target.ready}
+    <p class="erase-hint">先连接设备后才能执行擦除。</p>
+  {/if}
 </div>
 
 <style>
-  .erase-action {
+  .erase-tool {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .erase-warning {
     display: flex;
-    align-items: center;
-    justify-content: flex-start;
+    align-items: flex-start;
     gap: var(--space-2);
-    width: auto;
-    min-width: 0;
+    margin: 0;
+    border: 1px solid var(--color-danger-border);
+    border-radius: var(--radius-md);
+    background: var(--color-danger-soft);
+    color: var(--color-danger);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .erase-warning :global(.icon) {
+    flex-shrink: 0;
+    margin-top: 2px;
   }
 
   .erase-action :global(.confirm-btn) {
-    min-width: 88px;
-    min-height: 32px;
-    border-radius: var(--radius-sm);
-    font-weight: 900;
-  }
-
-  .erase-action :global(.job) {
-    flex: 1;
-    min-width: 0;
-    max-width: 420px;
+    min-width: 160px;
   }
 
   .erase-error {
@@ -79,14 +96,9 @@
     font-size: var(--text-xs);
   }
 
-  @media (max-width: 640px) {
-    .erase-action {
-      align-items: stretch;
-      flex-direction: column;
-    }
-
-    .erase-action :global(.job) {
-      max-width: none;
-    }
+  .erase-hint {
+    margin: 0;
+    color: var(--color-text-faint);
+    font-size: var(--text-xs);
   }
 </style>

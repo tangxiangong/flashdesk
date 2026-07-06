@@ -13,9 +13,9 @@
     "windows": [
       {
         "title": "FlashDesk",
-        "width": 860,
-        "height": 560,
-        "minWidth": 860,
+        "width": 920,
+        "height": 760,
+        "minWidth": 720,
         "minHeight": 560
       }
     ],

@@ -3,31 +3,124 @@
   import Popover from "$lib/components/Popover.svelte";
   import Segmented from "$lib/components/Segmented.svelte";
   import chevronIcon from "$lib/assets/icons/chevron-down.svg?url";
-  import refreshIcon from "$lib/assets/icons/refresh.svg?url";
+  import cpuIcon from "$lib/assets/icons/cpu.svg?url";
   import targetIcon from "$lib/assets/icons/target.svg?url";
+  import slidersIcon from "$lib/assets/icons/sliders.svg?url";
+  import alertIcon from "$lib/assets/icons/alert.svg?url";
+  import xIcon from "$lib/assets/icons/x.svg?url";
   import ProbePicker from "$lib/features/target/ProbePicker.svelte";
   import ChipPicker from "$lib/features/target/ChipPicker.svelte";
   import { target } from "$lib/state/target.svelte";
-  import { isTauriRuntime } from "$lib/api/tauri";
-  import type { WireProtocol } from "$lib/api/tauri";
+  import {
+    isTauriRuntime,
+    readableError,
+    targetMemoryMap,
+    type MemoryRegionKind,
+    type MemoryRegionLayout,
+    type WireProtocol,
+  } from "$lib/api/tauri";
 
   let probeOpen = $state(false);
   let chipOpen = $state(false);
+  let gearOpen = $state(false);
   let didInitialProbeScan = $state(false);
 
-  let probeLabel = $derived(
-    target.selectedProbeSummary?.product ??
-      (target.probe ? target.probe : "自动"),
+  let layoutLoading = $state(false);
+  let regions = $state<MemoryRegionLayout[]>([]);
+  let layoutError = $state<string | null>(null);
+  let loadedChip = $state("");
+
+  let hasManualProbe = $derived(!target.connected && target.probe != null);
+  let hasManualChip = $derived(!target.connected && target.chip.trim() !== "");
+
+  let probeName = $derived(
+    target.connected
+      ? (target.connection?.probe ?? target.probe ?? "")
+      : (target.selectedProbeSummary?.product ?? target.probe ?? ""),
   );
-  let probeSerial = $derived(target.selectedProbeSummary?.serialNumber ?? "");
-  let probeVidPid = $derived(
-    target.selectedProbeSummary
-      ? `${hex16(target.selectedProbeSummary.vendorId)}:${hex16(target.selectedProbeSummary.productId)}`
-      : "自动",
+  let probeSub = $derived(
+    target.connected
+      ? (target.selectedProbeSummary?.serialNumber ?? "已连接")
+      : target.probesLoading
+        ? "扫描中…"
+        : target.probes.length > 0
+          ? `检测到 ${target.probes.length} 个设备`
+          : "未检测到设备",
   );
-  let chipLabel = $derived(target.chip.trim() || "自动识别");
-  function hex16(value: number): string {
-    return value.toString(16).padStart(4, "0").toUpperCase();
+
+  let chipName = $derived(
+    target.connected ? (target.connection?.chip ?? "") : target.chip.trim(),
+  );
+
+  let sizeSuffix = $derived.by(() => {
+    if (!target.connected || regions.length === 0) return "";
+    const flash = totalSize("nvm");
+    const ram = totalSize("ram");
+    const parts: string[] = [];
+    if (flash > 0) parts.push(`Flash ${sizeLabel(flash)}`);
+    if (ram > 0) parts.push(`RAM ${sizeLabel(ram)}`);
+    return parts.length > 0 ? ` · ${parts.join(" · ")}` : "";
+  });
+
+  let chipSub = $derived(
+    target.connected && target.connection
+      ? `${target.connection.protocol.toUpperCase()} · ${target.connection.speedKhz ?? target.speedKhz} kHz${sizeSuffix}`
+      : `${target.protocol.toUpperCase()} · ${target.speedKhz} kHz`,
+  );
+
+  let statusState = $derived(
+    target.connecting || target.probesLoading
+      ? "busy"
+      : target.connected
+        ? "connected"
+        : "idle",
+  );
+  let statusText = $derived(
+    target.probesLoading
+      ? "扫描中"
+      : target.connecting
+        ? "连接中"
+        : target.connected
+          ? "已连接"
+          : "未连接",
+  );
+  let barError = $derived(
+    target.connectError ?? target.probesError ?? layoutError,
+  );
+
+  function sizeLabel(bytes: number): string {
+    if (bytes <= 0) return "--";
+    if (bytes >= 1024 * 1024 && bytes % (1024 * 1024) === 0) {
+      return `${bytes / (1024 * 1024)}M`;
+    }
+    if (bytes >= 1024 && bytes % 1024 === 0) {
+      return `${bytes / 1024}K`;
+    }
+    return `${bytes}B`;
+  }
+
+  function totalSize(kind: MemoryRegionKind): number {
+    return regions
+      .filter((region) => region.kind === kind && !region.isAlias)
+      .reduce((sum, region) => sum + region.size, 0);
+  }
+
+  async function loadLayout(nextChip: string) {
+    if (!nextChip) return;
+
+    layoutLoading = true;
+    layoutError = null;
+
+    try {
+      regions = await targetMemoryMap(nextChip);
+      loadedChip = nextChip;
+    } catch (err) {
+      regions = [];
+      loadedChip = nextChip;
+      layoutError = readableError(err);
+    } finally {
+      layoutLoading = false;
+    }
   }
 
   $effect(() => {
@@ -41,520 +134,408 @@
       void target.refreshProbes();
     }
   });
+
+  $effect(() => {
+    const chip = target.connected ? target.effectiveChip.trim() : "";
+
+    if (!chip) {
+      regions = [];
+      loadedChip = "";
+      return;
+    }
+
+    if (isTauriRuntime() && chip !== loadedChip && !layoutLoading) {
+      void loadLayout(chip);
+    }
+  });
 </script>
 
-<section class="connection-panel" aria-labelledby="connection-title">
-  <div class="connection-head">
-    <h2 id="connection-title">连接</h2>
-    <button type="button" class="status-wrap" aria-label="连接状态">
-      <span
-        class="status-dot"
-        class:ready={target.connected}
-        class:loading={target.connecting || target.probesLoading}
-        title={target.probesLoading
-          ? "扫描中"
-          : target.connecting
-            ? "连接中"
-            : target.connected
-              ? "已连接"
-              : "未连接"}
-        aria-hidden="true"
-      ></span>
-
-      {#if target.connected && target.connection}
-        <span class="hardware-popover">
-          <span>
-            <b>烧录器</b>
-            <em class="ui-mono">{target.connection.probe}</em>
-          </span>
-          <span>
-            <b>型号</b>
-            <em class="ui-mono">{target.connection.chip}</em>
-          </span>
-          <span>
-            <b>接口</b>
-            <em>{target.connection.protocol.toUpperCase()}</em>
-          </span>
-          <span>
-            <b>速度</b>
-            <em>{target.connection.speedKhz ?? "-"} kHz</em>
-          </span>
-          <span>
-            <b>VID:PID</b>
-            <em class="ui-mono">{probeVidPid}</em>
-          </span>
-        </span>
-      {/if}
-    </button>
-  </div>
-
-  <div class="connection-fields">
-    <div class="field-group probe-field">
-      <span>烧录器</span>
-      <Popover bind:open={probeOpen} width={360}>
-        {#snippet trigger({ toggle })}
+<div class="device-bar">
+  <div class="device-bar-row">
+    <div class="device-field">
+      <Popover bind:open={probeOpen} width={340}>
+        {#snippet trigger({ toggle, open })}
           <button
             type="button"
-            class="select-control"
+            class="field-trigger"
             aria-expanded={probeOpen}
             onclick={toggle}
           >
-            <strong>{probeLabel}</strong>
-            {#if probeSerial}
-              <small class="ui-mono">{probeSerial}</small>
-            {/if}
-            <Icon src={chevronIcon} size={12} />
+            <Icon src={cpuIcon} size={15} />
+            <span class="field-copy">
+              <strong class:is-placeholder={!probeName}
+                >{probeName || "自动检测"}</strong
+              >
+              <small>{probeSub}</small>
+            </span>
+            <span class="field-chevron" class:open>
+              <Icon src={chevronIcon} size={12} />
+            </span>
           </button>
         {/snippet}
         {#snippet content({ close })}
           <ProbePicker {close} />
         {/snippet}
       </Popover>
-    </div>
 
-    <div class="field-group protocol-field">
-      <span>接口</span>
-      <Segmented
-        value={target.protocol}
-        options={[
-          { value: "swd" as WireProtocol, label: "SWD" },
-          { value: "jtag" as WireProtocol, label: "JTAG" },
-        ]}
-        onchange={(v) => (target.protocol = v)}
-      />
-    </div>
-
-    <label class="field-group speed">
-      <span>速度</span>
-      <div class="speed-input">
-        <input
-          class="ui-input ui-mono"
-          type="number"
-          min="1"
-          step="100"
-          bind:value={target.speedKhz}
-        />
-        <em>kHz</em>
-      </div>
-    </label>
-
-    <label class="field-group reset-mode" title="复位下连接">
-      <span>复位下连接</span>
-      <button
-        type="button"
-        class="reset-toggle"
-        role="switch"
-        aria-checked={target.connectUnderReset}
-        aria-label="复位下连接"
-        onclick={() => (target.connectUnderReset = !target.connectUnderReset)}
-      >
-        {target.connectUnderReset ? "开" : "关"}
-      </button>
-    </label>
-
-    <Popover bind:open={chipOpen} width={300}>
-      {#snippet trigger({ toggle })}
+      {#if hasManualProbe}
         <button
           type="button"
-          class="target-button"
-          title={`型号覆盖：${chipLabel}`}
-          aria-label={`型号覆盖：${chipLabel}`}
-          aria-expanded={chipOpen}
-          onclick={toggle}
+          class="field-clear"
+          title="重置为自动检测"
+          aria-label="重置为自动检测"
+          onclick={() => target.pickProbe(null)}
         >
-          <Icon src={targetIcon} size={14} />
-        </button>
-      {/snippet}
-      {#snippet content({ close })}
-        <ChipPicker {close} />
-      {/snippet}
-    </Popover>
-
-    <button
-      type="button"
-      class="scan-button"
-      title="重新扫描烧录器"
-      aria-label="重新扫描烧录器"
-      disabled={target.probesLoading}
-      onclick={() => void target.refreshProbes()}
-    >
-      <Icon src={refreshIcon} size={14} />
-    </button>
-
-    <div class="connection-actions">
-      <button
-        type="button"
-        class="connect-button"
-        disabled={target.connecting || target.connected}
-        onclick={() => void target.connect()}
-      >
-        {target.connecting ? "连接中" : target.connected ? "已连接" : "连接"}
-      </button>
-
-      {#if target.connected}
-        <button
-          type="button"
-          class="disconnect-button"
-          onclick={() => target.disconnect()}
-        >
-          断开
+          <Icon src={xIcon} size={11} />
         </button>
       {/if}
     </div>
+
+    <span class="bar-divider" aria-hidden="true"></span>
+
+    <div class="device-field">
+      <Popover bind:open={chipOpen} width={300}>
+        {#snippet trigger({ toggle, open })}
+          <button
+            type="button"
+            class="field-trigger"
+            aria-expanded={chipOpen}
+            onclick={toggle}
+          >
+            <Icon src={targetIcon} size={14} />
+            <span class="field-copy">
+              <strong class="ui-mono" class:is-placeholder={!chipName}
+                >{chipName || "自动识别"}</strong
+              >
+              <small>{chipSub}</small>
+            </span>
+            <span class="field-chevron" class:open>
+              <Icon src={chevronIcon} size={12} />
+            </span>
+          </button>
+        {/snippet}
+        {#snippet content({ close })}
+          <ChipPicker {close} />
+        {/snippet}
+      </Popover>
+
+      {#if hasManualChip}
+        <button
+          type="button"
+          class="field-clear"
+          title="清除型号覆盖"
+          aria-label="清除型号覆盖"
+          onclick={() => target.pickChip("")}
+        >
+          <Icon src={xIcon} size={11} />
+        </button>
+      {/if}
+    </div>
+
+    <Popover bind:open={gearOpen} align="end" width={260}>
+      {#snippet trigger({ toggle })}
+        <button
+          type="button"
+          class="ui-btn ui-btn--ghost ui-btn--icon"
+          title="接口与速率"
+          aria-label="接口与速率"
+          aria-expanded={gearOpen}
+          disabled={target.connected}
+          onclick={toggle}
+        >
+          <Icon src={slidersIcon} size={15} />
+        </button>
+      {/snippet}
+      {#snippet content()}
+        <div class="gear-panel">
+          <div class="gear-row">
+            <span class="ui-label">接口</span>
+            <Segmented
+              value={target.protocol}
+              options={[
+                { value: "swd" as WireProtocol, label: "SWD" },
+                { value: "jtag" as WireProtocol, label: "JTAG" },
+              ]}
+              onchange={(v) => (target.protocol = v)}
+            />
+          </div>
+
+          <label class="gear-row">
+            <span class="ui-label">速率 (kHz)</span>
+            <input
+              class="ui-input ui-mono"
+              type="number"
+              min="1"
+              step="100"
+              bind:value={target.speedKhz}
+            />
+          </label>
+
+          <div class="ui-switch-row">
+            <span class="ui-switch-copy">
+              <strong>复位下连接</strong>
+              <span>适用于低功耗或异常状态的芯片</span>
+            </span>
+            <button
+              type="button"
+              class="ui-switch"
+              role="switch"
+              aria-checked={target.connectUnderReset}
+              aria-label="复位下连接"
+              onclick={() =>
+                (target.connectUnderReset = !target.connectUnderReset)}
+            ></button>
+          </div>
+        </div>
+      {/snippet}
+    </Popover>
+
+    <span class="bar-spacer"></span>
+
+    <span class="bar-status" data-state={statusState}>
+      <span
+        class="ui-dot"
+        class:ui-dot--pulse={statusState === "busy"}
+        style="--dot-color: currentColor"
+      ></span>
+      {statusText}
+    </span>
+
+    {#if target.connected}
+      <button
+        type="button"
+        class="ui-btn ui-btn--ghost bar-action bar-action--danger"
+        onclick={() => target.disconnect()}
+      >
+        断开
+      </button>
+    {:else}
+      <button
+        type="button"
+        class="ui-btn ui-btn--primary bar-action"
+        disabled={target.connecting}
+        onclick={() => void target.connect()}
+      >
+        {target.connecting ? "连接中…" : "连接"}
+      </button>
+    {/if}
   </div>
 
-  {#if target.probesError}
-    <p class="connection-error">{target.probesError}</p>
+  {#if barError}
+    <p class="bar-error">
+      <Icon src={alertIcon} size={13} />
+      {barError}
+    </p>
   {/if}
-
-  {#if target.connectError}
-    <p class="connection-error">{target.connectError}</p>
-  {/if}
-</section>
+</div>
 
 <style>
-  .connection-panel {
-    display: grid;
-    gap: 8px;
-    width: 100%;
-    max-width: 100%;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  .connection-head {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .connection-head {
-    position: relative;
-  }
-
-  .status-wrap {
-    position: relative;
-    display: inline-grid;
-    place-items: center;
-    border: 0;
-    background: transparent;
-    cursor: default;
-    padding: 0;
-    outline: none;
-  }
-
-  .connection-head h2 {
-    margin: 0;
-    color: var(--color-text);
-    font-size: var(--text-lg);
-    line-height: 1.1;
-  }
-
-  .status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--color-warning);
-  }
-
-  .status-dot.ready {
-    background: var(--color-success);
-  }
-
-  .status-dot.loading {
-    background: var(--color-accent);
-  }
-
-  .hardware-popover {
-    position: absolute;
-    top: 18px;
-    left: -8px;
-    z-index: 20;
+  .device-bar {
     display: grid;
     gap: 6px;
-    width: max-content;
-    max-width: 360px;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
+    border-bottom: 1px solid var(--color-border);
     background: var(--color-surface);
-    box-shadow: var(--shadow-pop);
-    opacity: 0;
-    padding: 8px;
-    pointer-events: none;
-    transform: translateY(-2px);
-    transition:
-      opacity var(--duration-fast) var(--ease-out),
-      transform var(--duration-fast) var(--ease-out);
+    padding: 10px var(--space-6);
   }
 
-  .status-wrap:hover .hardware-popover,
-  .status-wrap:focus .hardware-popover,
-  .status-wrap:focus-within .hardware-popover {
-    opacity: 1;
-    pointer-events: auto;
-    transform: translateY(0);
-  }
-
-  .hardware-popover span {
-    display: grid;
-    grid-template-columns: 52px minmax(0, 1fr);
-    gap: 8px;
-    align-items: baseline;
-  }
-
-  .hardware-popover b {
-    color: var(--color-text-muted);
-    font-size: 10px;
-    font-weight: 800;
-  }
-
-  .hardware-popover em {
-    overflow: hidden;
-    color: var(--color-text);
-    font-size: var(--text-xs);
-    font-style: normal;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .connection-fields {
-    display: grid;
-    grid-template-columns: 220px 132px 112px 116px 32px 32px auto;
-    align-items: end;
-    gap: 8px;
-    width: max-content;
-    max-width: 100%;
-  }
-
-  .field-group {
-    display: grid;
-    gap: 4px;
-    min-width: 0;
-  }
-
-  .probe-field {
-    width: 220px;
-  }
-
-  .protocol-field {
-    width: 132px;
-  }
-
-  .speed {
-    width: 112px;
-  }
-
-  .reset-mode {
-    width: 116px;
-  }
-
-  .field-group > span {
-    color: var(--color-text-muted);
-    font-size: var(--text-2xs);
-    font-weight: 800;
-  }
-
-  .field-group :global(.popover-root) {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .connection-fields > :global(.popover-root) {
-    width: 32px;
-    flex: 0 0 32px;
-  }
-
-  .select-control,
-  .speed-input,
-  .reset-toggle,
-  .target-button,
-  .scan-button,
-  .connect-button,
-  .disconnect-button {
-    min-height: 32px;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    background: var(--color-surface-inset);
-  }
-
-  .select-control {
+  .device-bar-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+    gap: var(--space-2);
     width: 100%;
-    color: var(--color-text);
-    cursor: pointer;
-    font: inherit;
-    padding: 0 8px;
-    min-width: 0;
   }
 
-  .select-control:hover,
-  .connect-button:hover:not(:disabled),
-  .scan-button:hover:not(:disabled),
-  .disconnect-button:hover {
-    border-color: var(--color-border-strong);
+  .device-field {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    flex: 1 1 0;
+  }
+
+  .field-trigger {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    font: inherit;
+    padding: 6px 8px;
+    text-align: left;
+    transition: background var(--duration-fast) var(--ease-out);
+  }
+
+  .field-trigger:hover,
+  .field-trigger[aria-expanded="true"] {
     background: var(--color-surface-muted);
   }
 
-  .select-control strong {
+  .device-bar-row :global(.ui-btn--icon[aria-expanded="true"]) {
+    background: var(--color-surface-muted);
+    color: var(--color-text);
+  }
+
+  .field-copy {
+    display: grid;
+    gap: 0;
     min-width: 0;
-    flex: 1 1 auto;
+    overflow: hidden;
+    line-height: 1.25;
+  }
+
+  .field-copy strong {
     overflow: hidden;
     color: var(--color-text);
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
+    font-weight: 700;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .select-control small {
-    min-width: 0;
-    flex: 0 1 80px;
+  .field-copy strong.is-placeholder {
+    color: var(--color-text-faint);
+    font-weight: 600;
+  }
+
+  .field-copy small {
     overflow: hidden;
     color: var(--color-text-faint);
-    font-size: 10px;
+    font-size: var(--text-2xs);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .field-group :global(.segmented) {
-    width: 100%;
-  }
-
-  .field-group :global(.segment) {
-    flex: 1;
-    min-height: 30px;
-    padding: 0 6px;
-    font-size: var(--text-xs);
-  }
-
-  .speed-input {
+  .field-chevron {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    flex-shrink: 0;
+    place-items: center;
+    color: var(--color-text-faint);
+    transition: transform var(--duration-base) var(--ease-out);
+  }
+
+  .field-chevron.open {
+    transform: rotate(180deg);
+  }
+
+  .field-clear {
+    display: grid;
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--color-text-faint);
+    cursor: pointer;
+  }
+
+  .field-clear:hover {
+    background: var(--color-danger-soft);
+    color: var(--color-danger);
+  }
+
+  .bar-divider {
+    flex-shrink: 0;
+    width: 1px;
+    height: 24px;
+    background: var(--color-border);
+  }
+
+  .bar-spacer {
+    flex: 1 1 auto;
+    min-width: var(--space-2);
+  }
+
+  .bar-status {
+    display: inline-flex;
+    flex-shrink: 0;
     align-items: center;
     gap: 6px;
-    padding: 0 8px;
-  }
-
-  .speed input {
-    min-height: 24px;
-    border: 0;
-    background: transparent;
-    padding: 0;
-    font-size: var(--text-xs);
-    text-align: left;
-    appearance: textfield;
-    -moz-appearance: textfield;
-  }
-
-  .speed input::-webkit-outer-spin-button,
-  .speed input::-webkit-inner-spin-button {
-    margin: 0;
-  }
-
-  .speed em {
-    color: var(--color-text-muted);
+    color: var(--color-text-faint);
     font-size: var(--text-2xs);
-    font-style: normal;
+    font-weight: 700;
   }
 
-  .reset-toggle {
-    width: 100%;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    font: inherit;
-    font-size: var(--text-xs);
-    font-weight: 800;
+  .bar-status[data-state="connected"] {
+    color: var(--color-success);
   }
 
-  .reset-toggle[aria-checked="true"] {
-    border-color: var(--color-accent-border);
-    background: var(--color-accent-soft);
+  .bar-status[data-state="busy"] {
     color: var(--color-accent-strong);
   }
 
-  .scan-button {
-    display: grid;
-    width: 32px;
-    align-self: end;
-    place-items: center;
-    color: var(--color-text-muted);
-    cursor: pointer;
+  .bar-action {
+    flex-shrink: 0;
+    min-height: 32px;
+    padding: 0 var(--space-4);
   }
 
-  .target-button {
-    display: grid;
-    width: 32px;
-    align-self: end;
-    place-items: center;
-    color: var(--color-text-muted);
-    cursor: pointer;
+  .bar-action--danger {
+    color: var(--color-danger);
   }
 
-  .connection-actions {
+  .bar-action--danger:hover {
+    background: var(--color-danger-soft);
+    color: var(--color-danger);
+  }
+
+  .bar-error {
     display: flex;
-    align-items: end;
+    align-items: center;
     gap: 6px;
-    align-self: end;
-  }
-
-  .connect-button {
-    width: 76px;
-    min-height: 32px;
-    padding: 0 12px;
-    background: var(--color-accent);
-    color: var(--color-text-inverse);
-    cursor: pointer;
-    font: inherit;
-    font-size: var(--text-xs);
-    font-weight: 900;
-  }
-
-  .connect-button:disabled {
-    cursor: not-allowed;
-    opacity: 0.45;
-  }
-
-  .disconnect-button {
-    min-height: 32px;
-    padding: 0 10px;
-    color: var(--color-danger);
-    cursor: pointer;
-    font: inherit;
-    font-size: var(--text-xs);
-    font-weight: 900;
-  }
-
-  .scan-button:disabled {
-    cursor: not-allowed;
-    opacity: 0.45;
-  }
-
-  .connection-error {
-    margin: 0;
     color: var(--color-danger);
     font-size: var(--text-xs);
+    padding: 0 8px;
   }
 
-  @media (max-width: 640px) {
-    .connection-panel {
-      width: 100%;
+  .gear-panel {
+    display: grid;
+    gap: var(--space-3);
+    min-width: 220px;
+  }
+
+  .gear-row {
+    display: grid;
+    gap: 6px;
+  }
+
+  .gear-row :global(.segmented) {
+    width: 100%;
+  }
+
+  .gear-row :global(.segment) {
+    flex: 1;
+  }
+
+  @media (max-width: 720px) {
+    .device-bar {
+      padding: 10px var(--space-3);
     }
 
-    .connection-fields {
-      display: flex;
-      align-items: stretch;
-      flex-direction: column;
-      width: 100%;
+    .device-bar-row {
+      flex-wrap: wrap;
     }
 
-    .field-group,
-    .probe-field,
-    .protocol-field,
-    .speed,
-    .reset-mode {
-      width: 100%;
+    .bar-divider {
+      display: none;
+    }
+
+    .device-field {
+      flex: 1 1 100%;
+    }
+
+    .bar-spacer {
+      display: none;
+    }
+
+    .bar-status {
+      flex: 1 1 auto;
     }
   }
 </style>

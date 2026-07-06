@@ -66,14 +66,14 @@
 
   .popover-panel {
     position: absolute;
-    top: calc(100% + 6px);
+    top: calc(100% + 8px);
     left: 0;
     z-index: 60;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     background: var(--color-surface);
     box-shadow: var(--shadow-pop);
-    padding: 8px;
+    padding: 10px;
     animation: pop-in var(--duration-base) var(--ease-out);
   }
 

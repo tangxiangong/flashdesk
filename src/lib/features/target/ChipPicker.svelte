@@ -45,16 +45,6 @@
   </label>
 
   <div class="picker-list ui-scrollbar">
-    <button
-      type="button"
-      class="chip-row auto-row"
-      class:selected={!target.chip.trim()}
-      onclick={() => commit("")}
-    >
-      <strong>自动识别</strong>
-      <span>默认</span>
-    </button>
-
     {#if target.chipSearching}
       <p class="empty">搜索中…</p>
     {:else if target.chipResults.length > 0}
@@ -77,6 +67,8 @@
         <strong class="ui-mono">{draft.trim()}</strong>
         <span>使用手动型号</span>
       </button>
+    {:else}
+      <p class="empty">输入型号名称进行搜索，留空则自动识别</p>
     {/if}
   </div>
 </div>
@@ -91,7 +83,7 @@
     margin: 0;
     color: var(--color-text);
     font-size: var(--text-sm);
-    font-weight: 700;
+    font-weight: 800;
   }
 
   .search-field {

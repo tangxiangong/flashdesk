@@ -2,13 +2,11 @@
   import "$lib/styles/tokens.css";
   import "$lib/styles/components.css";
   import HeaderBar from "$lib/components/HeaderBar.svelte";
+  import ConnectionPanel from "$lib/features/target/ConnectionPanel.svelte";
   import FlashView from "$lib/features/flash/FlashView.svelte";
-  import ChipInfo from "$lib/features/target/ChipInfo.svelte";
+  import ToolsPanel from "$lib/features/tools/ToolsPanel.svelte";
   import { theme } from "$lib/state/theme.svelte";
   import { jobs } from "$lib/state/jobs.svelte";
-  import { target } from "$lib/state/target.svelte";
-
-  let chipPanelOpen = $state(false);
 
   $effect(() => {
     theme.sync();
@@ -22,119 +20,55 @@
 
 <div class="shell">
   <HeaderBar />
+  <ConnectionPanel />
 
   <main class="content ui-scrollbar" aria-label="烧录工作台">
     <div class="workspace">
-      <div class="programmer-console">
-        <section class="flash-pane" aria-label="固件烧录">
-          <FlashView />
-        </section>
-      </div>
+      <FlashView />
+      <ToolsPanel />
+
+      <p class="footnote">基于 probe-rs · 面向嵌入式开发的固件烧录工具</p>
     </div>
   </main>
-
-  {#if target.connected}
-    <aside
-      class="chip-float"
-      class:collapsed={!chipPanelOpen}
-      aria-label="芯片信息"
-    >
-      <button
-        type="button"
-        class="chip-toggle"
-        aria-expanded={chipPanelOpen}
-        onclick={() => (chipPanelOpen = !chipPanelOpen)}
-      >
-        芯片
-      </button>
-
-      {#if chipPanelOpen}
-        <ChipInfo />
-      {/if}
-    </aside>
-  {/if}
 </div>
 
 <style>
   .shell {
     display: grid;
-    grid-template-rows: var(--header-height) 1fr;
+    grid-template-rows: var(--header-height) auto 1fr;
     height: 100dvh;
-    background: var(--color-bg);
+    background:
+      radial-gradient(
+        circle at 50% 0%,
+        color-mix(in srgb, var(--color-accent) 5%, transparent),
+        transparent 60%
+      ),
+      var(--texture-dots) 0 0 / 18px 18px,
+      var(--color-bg);
   }
 
   .content {
     min-height: 0;
     overflow: auto;
-    padding: var(--space-2);
+    padding: var(--space-8) var(--space-5) var(--space-8);
   }
 
   .workspace {
     display: grid;
-    justify-items: stretch;
-    gap: var(--space-3);
+    gap: var(--space-6);
     width: 100%;
-    margin: 0;
   }
 
-  .programmer-console {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-3);
-    align-items: stretch;
-    min-width: 0;
-  }
-
-  .flash-pane {
-    min-width: 0;
-  }
-
-  .chip-float {
-    position: fixed;
-    top: calc(var(--header-height) + var(--space-3));
-    right: var(--space-3);
-    z-index: 30;
-    display: grid;
-    gap: 8px;
-    width: min(300px, calc(100vw - 24px));
-    max-height: calc(100dvh - var(--header-height) - 24px);
-  }
-
-  .chip-float.collapsed {
-    width: auto;
-  }
-
-  .chip-toggle {
-    justify-self: end;
-    min-height: 32px;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    background: var(--color-surface);
-    color: var(--color-text);
-    cursor: pointer;
-    font: inherit;
+  .footnote {
+    margin: var(--space-2) 0 0;
+    color: var(--color-text-faint);
     font-size: var(--text-xs);
-    font-weight: 900;
-    padding: 0 12px;
-    box-shadow: var(--shadow-pop);
-  }
-
-  .chip-toggle:hover {
-    border-color: var(--color-border-strong);
-    background: var(--color-surface-muted);
-  }
-
-  @media (max-width: 360px) {
-    .chip-float {
-      left: var(--space-3);
-      right: var(--space-3);
-      width: auto;
-    }
+    text-align: center;
   }
 
   @media (max-width: 640px) {
     .content {
-      padding: var(--space-3);
+      padding: var(--space-5) var(--space-3) var(--space-8);
     }
   }
 </style>

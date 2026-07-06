@@ -1,10 +1,10 @@
-/* Design tokens - FlashDesk
- * A dense, technical workspace for firmware flashing workflows.
- * Dark is the primary/default surface (matches embedded-lab / terminal
- * conventions); light is a fully supported secondary theme.
+/* Design tokens — FlashDesk
+ * "Precision Lab": a calm, instrument-panel aesthetic for firmware flashing.
+ * Paper-light surfaces, hairline dividers, one confident signal-blue accent,
+ * generous breathing room. Dark mode is a fully supported secondary theme.
  */
 
-@import "@fontsource-variable/inter";
+@import "@fontsource-variable/manrope";
 @import "@fontsource/jetbrains-mono/400.css";
 @import "@fontsource/jetbrains-mono/500.css";
 @import "@fontsource/jetbrains-mono/600.css";
@@ -12,18 +12,18 @@
 :root {
   /* Type */
   --font-ui:
-    "Inter Variable", "Inter", ui-sans-serif, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", sans-serif;
+    "Manrope Variable", "Manrope", ui-sans-serif, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono:
     "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --text-2xs: 11px;
   --text-xs: 12px;
   --text-sm: 13px;
-  --text-base: 14px;
+  --text-base: 14.5px;
   --text-md: 16px;
-  --text-lg: 20px;
-  --text-xl: 24px;
+  --text-lg: 19px;
+  --text-xl: 23px;
   --text-2xl: 28px;
 
   /* Spacing (4px rhythm) */
@@ -36,119 +36,133 @@
   --space-7: 32px;
   --space-8: 40px;
 
-  /* Radii */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
+  /* Radii — softer, more generous than a dense terminal UI */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
   --radius-pill: 999px;
 
   /* Motion */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --duration-fast: 120ms;
-  --duration-base: 180ms;
-  --duration-slow: 260ms;
+  --duration-fast: 130ms;
+  --duration-base: 200ms;
+  --duration-slow: 340ms;
 
   /* Layout */
-  --activity-width: 60px;
-  --console-width: 340px;
-  --console-collapsed-width: 40px;
-  --header-height: 56px;
-  color-scheme: dark;
+  --header-height: 64px;
+
+  color-scheme: light;
 }
 
 /* ---------------------------------------------------------------------- */
-/* Dark theme (default)                                                    */
+/* Light theme (default) — warm paper, ink text, signal-blue accent        */
 /* ---------------------------------------------------------------------- */
 :root,
-:root[data-theme="dark"] {
-  color-scheme: dark;
-
-  --color-bg: #09111d;
-  --color-surface: #101827;
-  --color-surface-raised: #111c2d;
-  --color-surface-muted: #172235;
-  --color-surface-inset: #0a1321;
-
-  --color-border: #273244;
-  --color-border-strong: #475569;
-
-  --color-text: #eef2f9;
-  --color-text-muted: #8b97ac;
-  --color-text-faint: #5c6a82;
-  --color-text-inverse: #061019;
-
-  --color-accent: #059669;
-  --color-accent-strong: #10b981;
-  --color-accent-soft: #062f28;
-  --color-accent-border: #146b55;
-
-  --color-success: #34d399;
-  --color-success-soft: #0f2b24;
-  --color-success-border: #1c4a3c;
-
-  --color-danger: #f87171;
-  --color-danger-strong: #ff9c94;
-  --color-danger-soft: #351616;
-  --color-danger-border: #5c2323;
-
-  --color-warning: #fbbf59;
-  --color-warning-soft: #33260f;
-  --color-warning-border: #543c15;
-
-  --color-console-bg: #060b14;
-  --color-console-text: #cbd6e6;
-  --color-console-accent: #79aaff;
-
-  --shadow-panel: none;
-  --shadow-pop: 0 20px 42px -24px rgba(0, 0, 0, 0.62);
-  --scrim: rgba(3, 7, 15, 0.6);
-}
-
-/* ---------------------------------------------------------------------- */
-/* Light theme                                                            */
-/* ---------------------------------------------------------------------- */
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --color-bg: #f3f5f2;
+  --color-bg: #f6f6f3;
   --color-surface: #ffffff;
   --color-surface-raised: #ffffff;
-  --color-surface-muted: #f0f3ef;
-  --color-surface-inset: #f7f8f6;
+  --color-surface-muted: #f0f1ed;
+  --color-surface-inset: #faf9f6;
 
-  --color-border: #d8ddd5;
-  --color-border-strong: #9ca79a;
+  --color-border: #e6e5e0;
+  --color-border-strong: #cccbc3;
 
-  --color-text: #101827;
-  --color-text-muted: #5b6579;
-  --color-text-faint: #8894a6;
+  --color-text: #191a17;
+  --color-text-muted: #6b6d66;
+  --color-text-faint: #9b9c94;
   --color-text-inverse: #ffffff;
 
-  --color-accent: #047857;
-  --color-accent-strong: #065f46;
-  --color-accent-soft: #e4f4ed;
-  --color-accent-border: #9bd7bf;
+  --color-accent: #3457d5;
+  --color-accent-strong: #24409f;
+  --color-accent-soft: #ecf0fd;
+  --color-accent-border: #c3d0f7;
 
-  --color-success: #178a58;
-  --color-success-soft: #e6f6ee;
-  --color-success-border: #b7e2cb;
+  --color-success: #17845a;
+  --color-success-soft: #e9f6ef;
+  --color-success-border: #bfe4cf;
 
-  --color-danger: #d13c30;
-  --color-danger-strong: #b3281d;
-  --color-danger-soft: #fdecea;
-  --color-danger-border: #f3c1bc;
+  --color-danger: #c23d2e;
+  --color-danger-strong: #a12e21;
+  --color-danger-soft: #fceeec;
+  --color-danger-border: #f2c9c1;
 
-  --color-warning: #a9660b;
-  --color-warning-soft: #fdf1de;
-  --color-warning-border: #edd39a;
+  --color-warning: #a15d05;
+  --color-warning-soft: #fbf0dd;
+  --color-warning-border: #ecd6a4;
 
-  --color-console-bg: #0d1526;
-  --color-console-text: #cfd9e8;
-  --color-console-accent: #4c8dff;
+  --color-console-bg: #17181a;
+  --color-console-text: #d7dbe0;
+  --color-console-accent: #7ea2f7;
 
-  --shadow-panel: none;
-  --shadow-pop: 0 22px 44px -26px rgba(16, 24, 39, 0.24);
-  --scrim: rgba(16, 24, 39, 0.4);
+  --shadow-xs: 0 1px 2px rgba(30, 30, 24, 0.05);
+  --shadow-sm:
+    0 1px 2px rgba(30, 30, 24, 0.04), 0 6px 16px -10px rgba(30, 30, 24, 0.12);
+  --shadow-pop: 0 20px 44px -20px rgba(20, 20, 16, 0.28);
+  --scrim: rgba(23, 24, 20, 0.44);
+
+  --texture-dots: radial-gradient(
+    circle,
+    rgba(25, 26, 23, 0.06) 1px,
+    transparent 1px
+  );
+}
+
+/* ---------------------------------------------------------------------- */
+/* Dark theme                                                              */
+/* ---------------------------------------------------------------------- */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-bg: #101114;
+  --color-surface: #17181c;
+  --color-surface-raised: #1c1e22;
+  --color-surface-muted: #1e2024;
+  --color-surface-inset: #0d0e11;
+
+  --color-border: #2a2c31;
+  --color-border-strong: #40434a;
+
+  --color-text: #f2f3f5;
+  --color-text-muted: #9a9da5;
+  --color-text-faint: #6b6e76;
+  --color-text-inverse: #0d0e11;
+
+  --color-accent: #5c85f5;
+  --color-accent-strong: #7ea0ff;
+  --color-accent-soft: #1a2440;
+  --color-accent-border: #354a86;
+
+  --color-success: #37c288;
+  --color-success-soft: #10281f;
+  --color-success-border: #1f4636;
+
+  --color-danger: #f0776a;
+  --color-danger-strong: #ff9188;
+  --color-danger-soft: #321815;
+  --color-danger-border: #5a2a24;
+
+  --color-warning: #e6ab54;
+  --color-warning-soft: #2e2311;
+  --color-warning-border: #533d1a;
+
+  --color-console-bg: #0a0b0d;
+  --color-console-text: #ccd2da;
+  --color-console-accent: #7ea2f7;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.28);
+  --shadow-sm:
+    0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 20px -12px rgba(0, 0, 0, 0.5);
+  --shadow-pop: 0 24px 48px -20px rgba(0, 0, 0, 0.65);
+  --scrim: rgba(4, 5, 7, 0.6);
+
+  --texture-dots: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.06) 1px,
+    transparent 1px
+  );
 }
 
 /* ---------------------------------------------------------------------- */
@@ -181,6 +195,14 @@ select,
 textarea {
   font-family: inherit;
   color: inherit;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-ui);
+  letter-spacing: -0.01em;
 }
 
 ::selection {

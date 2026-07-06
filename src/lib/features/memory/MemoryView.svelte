@@ -1,7 +1,6 @@
 <script lang="ts">
   import Icon from "$lib/components/Icon.svelte";
   import alertIcon from "$lib/assets/icons/alert.svg?url";
-  import chevronDownIcon from "$lib/assets/icons/chevron-down.svg?url";
   import eyeIcon from "$lib/assets/icons/eye.svg?url";
   import {
     isTauriRuntime,
@@ -16,7 +15,6 @@
 
   let address = $state("0x00000000");
   let length = $state(256);
-  let expanded = $state(false);
   let addressEdited = $state(false);
   let reading = $state(false);
   let readError = $state<string | null>(null);
@@ -150,155 +148,93 @@
   }
 </script>
 
-<section class="memory-tool" aria-labelledby="memory-title">
-  <header class="memory-head">
-    <h2 id="memory-title">内存</h2>
+<div class="memory-tool">
+  <div class="read-controls">
+    <label>
+      <span>地址</span>
+      <input
+        class="ui-input ui-mono"
+        bind:value={address}
+        autocomplete="off"
+        oninput={markAddressEdited}
+        placeholder="0x00000000"
+      />
+    </label>
+
+    <label>
+      <span>长度（字节）</span>
+      <input
+        class="ui-input ui-mono"
+        type="number"
+        min="1"
+        max="4096"
+        step="16"
+        bind:value={length}
+      />
+    </label>
+
     <button
       type="button"
-      class="memory-toggle"
-      aria-expanded={expanded}
-      aria-controls="memory-body"
-      title={expanded ? "收起" : "展开"}
-      onclick={() => (expanded = !expanded)}
+      class="ui-btn ui-btn--primary read-button"
+      disabled={!target.connected ||
+        reading ||
+        parsedAddress == null ||
+        length <= 0}
+      onclick={() => void doRead()}
     >
-      <Icon src={chevronDownIcon} size={14} />
+      <Icon src={eyeIcon} size={14} />
+      {reading ? "读取中…" : "读取"}
     </button>
-  </header>
+  </div>
 
-  {#if expanded}
-    <div id="memory-body" class="memory-body">
-      <div class="read-controls">
-        <label>
-          <span>地址</span>
-          <input
-            class="ui-input ui-mono"
-            bind:value={address}
-            autocomplete="off"
-            oninput={markAddressEdited}
-            placeholder="0x00000000"
-          />
-        </label>
-
-        <label>
-          <span>长度</span>
-          <input
-            class="ui-input ui-mono"
-            type="number"
-            min="1"
-            max="4096"
-            step="16"
-            bind:value={length}
-          />
-        </label>
-
-        <button
-          type="button"
-          class="read-button"
-          disabled={!target.connected ||
-            reading ||
-            parsedAddress == null ||
-            length <= 0}
-          onclick={() => void doRead()}
-        >
-          <Icon src={eyeIcon} size={14} />
-          {reading ? "读取中" : "读取"}
-        </button>
-      </div>
-
-      {#if readError}
-        <p class="ui-callout ui-callout--danger">
-          <Icon src={alertIcon} size={14} />{readError}
-        </p>
-      {/if}
-
-      <div class="memory-table ui-scrollbar" aria-label="内存数据">
-        <div class="table-head">
-          <span>Address</span>
-          <span class="byte-head"
-            >00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F</span
-          >
-          <span>ASCII</span>
-        </div>
-
-        {#if rows.length === 0}
-          <p class="empty">{target.connected ? "未读取" : "未连接"}</p>
-        {:else}
-          {#each rows as row (row.address)}
-            <div class="table-row">
-              <span class="ui-mono address-cell">{hexAddress(row.address)}</span
-              >
-              <span class="ui-mono bytes-cell">
-                {#each Array.from({ length: 16 }) as _, index}
-                  <span
-                    >{row.bytes[index] == null
-                      ? "--"
-                      : hexByte(row.bytes[index])}</span
-                  >
-                {/each}
-              </span>
-              <span class="ui-mono ascii-cell">{row.ascii}</span>
-            </div>
-          {/each}
-        {/if}
-      </div>
-    </div>
+  {#if readError}
+    <p class="ui-callout ui-callout--danger">
+      <Icon src={alertIcon} size={14} />{readError}
+    </p>
   {/if}
-</section>
+
+  <div class="memory-table ui-scrollbar" aria-label="内存数据">
+    <div class="table-head">
+      <span>Address</span>
+      <span class="byte-head"
+        >00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F</span
+      >
+      <span>ASCII</span>
+    </div>
+
+    {#if rows.length === 0}
+      <p class="empty">{target.connected ? "尚未读取数据" : "请先连接设备"}</p>
+    {:else}
+      {#each rows as row (row.address)}
+        <div class="table-row">
+          <span class="ui-mono address-cell">{hexAddress(row.address)}</span>
+          <span class="ui-mono bytes-cell">
+            {#each Array.from({ length: 16 }) as _, index}
+              <span
+                >{row.bytes[index] == null
+                  ? "--"
+                  : hexByte(row.bytes[index])}</span
+              >
+            {/each}
+          </span>
+          <span class="ui-mono ascii-cell">{row.ascii}</span>
+        </div>
+      {/each}
+    {/if}
+  </div>
+</div>
 
 <style>
   .memory-tool {
     display: grid;
-    gap: 10px;
-    border-top: 1px solid var(--color-border);
-    padding-top: 10px;
-  }
-
-  .memory-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-
-  .memory-head h2 {
-    margin: 0;
-    color: var(--color-text);
-    font-size: var(--text-lg);
-    line-height: 1.1;
-  }
-
-  .memory-toggle {
-    display: grid;
-    width: 28px;
-    height: 28px;
-    place-items: center;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    background: var(--color-surface-inset);
-    color: var(--color-text-muted);
-    cursor: pointer;
-  }
-
-  .memory-toggle :global(.icon) {
-    transition: transform var(--duration-base) var(--ease-out);
-  }
-
-  .memory-toggle[aria-expanded="true"] :global(.icon) {
-    transform: rotate(180deg);
-  }
-
-  .memory-body {
-    display: grid;
-    gap: 10px;
+    gap: var(--space-3);
   }
 
   .read-controls {
     display: grid;
-    grid-template-columns: minmax(160px, 220px) 112px 82px;
-    gap: 8px;
+    grid-template-columns: minmax(160px, 220px) 140px auto;
+    gap: var(--space-2);
     align-items: end;
-    width: max-content;
-    max-width: 100%;
   }
 
   .read-controls label {
@@ -309,46 +245,28 @@
   .read-controls span {
     color: var(--color-text-muted);
     font-size: var(--text-2xs);
-    font-weight: 800;
+    font-weight: 700;
   }
 
   .read-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    min-height: 30px;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    background: var(--color-surface-muted);
-    color: var(--color-text);
-    cursor: pointer;
-    font: inherit;
-    font-size: var(--text-xs);
-    font-weight: 900;
-    padding: 0 10px;
-  }
-
-  .read-button:disabled {
-    cursor: not-allowed;
-    opacity: 0.45;
+    white-space: nowrap;
   }
 
   .memory-table {
     overflow: auto;
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-md);
     background: var(--color-surface-inset);
   }
 
   .table-head,
   .table-row {
     display: grid;
-    grid-template-columns: 112px minmax(520px, 1fr) 140px;
+    grid-template-columns: 100px minmax(430px, 1fr) 130px;
     gap: 10px;
     align-items: center;
-    min-width: 800px;
-    padding: 6px 8px;
+    min-width: 680px;
+    padding: 8px 12px;
   }
 
   .table-head {
@@ -359,7 +277,7 @@
     background: var(--color-surface-muted);
     color: var(--color-text-muted);
     font-size: var(--text-2xs);
-    font-weight: 800;
+    font-weight: 700;
   }
 
   .table-row {
@@ -393,13 +311,12 @@
     margin: 0;
     color: var(--color-text-muted);
     font-size: var(--text-sm);
-    padding: 10px;
+    padding: var(--space-4);
   }
 
-  @media (max-width: 720px) {
+  @media (max-width: 640px) {
     .read-controls {
       grid-template-columns: 1fr;
-      width: 100%;
     }
   }
 </style>

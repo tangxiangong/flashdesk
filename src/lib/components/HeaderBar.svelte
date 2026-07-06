@@ -9,10 +9,7 @@
 <header class="header">
   <div class="brand">
     <span class="mark"><Icon src={flashIcon} size={16} /></span>
-    <div class="brand-copy">
-      <strong>FlashDesk</strong>
-      <span>固件烧录工具</span>
-    </div>
+    <strong>FlashDesk</strong>
   </div>
 
   <div class="actions">
@@ -36,44 +33,31 @@
     height: var(--header-height);
     border-bottom: 1px solid var(--color-border);
     background: var(--color-surface);
-    padding: 0 var(--space-4);
+    padding: 0 var(--space-6);
   }
 
   .brand {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: 10px;
     flex-shrink: 0;
   }
 
   .mark {
     display: grid;
-    width: 28px;
-    height: 28px;
+    width: 30px;
+    height: 30px;
     place-items: center;
-    border: 1px solid var(--color-accent-border);
     border-radius: var(--radius-sm);
     background: var(--color-accent);
     color: var(--color-text-inverse);
   }
 
-  .brand-copy {
-    display: grid;
-    line-height: 1.15;
-  }
-
-  .brand-copy strong {
+  .brand strong {
     color: var(--color-text);
-    font-size: var(--text-sm);
-    font-weight: 700;
-  }
-
-  .brand-copy span {
-    color: var(--color-text-faint);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    font-size: var(--text-md);
+    font-weight: 800;
+    letter-spacing: -0.01em;
   }
 
   .actions {

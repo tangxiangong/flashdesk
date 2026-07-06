@@ -32,22 +32,6 @@
   </div>
 
   <div class="picker-list ui-scrollbar">
-    <button
-      type="button"
-      class="probe-row"
-      class:selected={target.probe === null}
-      onclick={() => {
-        target.pickProbe(null);
-        close();
-      }}
-    >
-      <span class="ui-dot" style="--dot-color: var(--color-text-faint)"></span>
-      <div>
-        <strong>自动</strong>
-        <span>单个设备时使用</span>
-      </div>
-    </button>
-
     {#if target.probesLoading}
       <p class="empty">正在扫描…</p>
     {:else if target.probes.length === 0}
@@ -90,24 +74,26 @@
   .picker {
     display: grid;
     gap: var(--space-3);
+    min-width: 0;
   }
 
   .picker-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    padding: 0 2px;
   }
 
   .picker-head h3 {
     margin: 0;
     color: var(--color-text);
     font-size: var(--text-sm);
-    font-weight: 700;
+    font-weight: 800;
   }
 
   .picker-list {
     display: grid;
-    gap: 4px;
+    gap: 2px;
     max-height: 280px;
     overflow: auto;
   }
@@ -121,8 +107,9 @@
     background: transparent;
     cursor: pointer;
     font: inherit;
-    padding: var(--space-2);
+    padding: var(--space-2) var(--space-2);
     text-align: left;
+    transition: background var(--duration-fast) var(--ease-out);
   }
 
   .probe-row .ui-dot {
