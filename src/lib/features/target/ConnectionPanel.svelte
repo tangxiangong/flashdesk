@@ -6,10 +6,10 @@
   import cpuIcon from "$lib/assets/icons/cpu.svg?url";
   import targetIcon from "$lib/assets/icons/target.svg?url";
   import slidersIcon from "$lib/assets/icons/sliders.svg?url";
-  import alertIcon from "$lib/assets/icons/alert.svg?url";
   import xIcon from "$lib/assets/icons/x.svg?url";
   import ProbePicker from "$lib/features/target/ProbePicker.svelte";
   import ChipPicker from "$lib/features/target/ChipPicker.svelte";
+  import { appStatus } from "$lib/state/status.svelte";
   import { target } from "$lib/state/target.svelte";
   import {
     isTauriRuntime,
@@ -27,7 +27,6 @@
 
   let layoutLoading = $state(false);
   let regions = $state<MemoryRegionLayout[]>([]);
-  let layoutError = $state<string | null>(null);
   let loadedChip = $state("");
 
   let hasManualProbe = $derived(!target.connected && target.probe != null);
@@ -84,10 +83,6 @@
           ? "已连接"
           : "未连接",
   );
-  let barError = $derived(
-    target.connectError ?? target.probesError ?? layoutError,
-  );
-
   function sizeLabel(bytes: number): string {
     if (bytes <= 0) return "--";
     if (bytes >= 1024 * 1024 && bytes % (1024 * 1024) === 0) {
@@ -109,15 +104,20 @@
     if (!nextChip) return;
 
     layoutLoading = true;
-    layoutError = null;
+    if (appStatus.current?.label === "内存布局") {
+      appStatus.clear();
+    }
 
     try {
       regions = await targetMemoryMap(nextChip);
       loadedChip = nextChip;
+      if (appStatus.current?.label === "内存布局") {
+        appStatus.clear();
+      }
     } catch (err) {
       regions = [];
       loadedChip = nextChip;
-      layoutError = readableError(err);
+      appStatus.danger("内存布局", readableError(err));
     } finally {
       layoutLoading = false;
     }
@@ -320,13 +320,6 @@
       </button>
     {/if}
   </div>
-
-  {#if barError}
-    <p class="bar-error">
-      <Icon src={alertIcon} size={13} />
-      {barError}
-    </p>
-  {/if}
 </div>
 
 <style>
@@ -483,15 +476,6 @@
   .bar-action--danger:hover {
     background: var(--color-danger-soft);
     color: var(--color-danger);
-  }
-
-  .bar-error {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--color-danger);
-    font-size: var(--text-xs);
-    padding: 0 8px;
   }
 
   .gear-panel {

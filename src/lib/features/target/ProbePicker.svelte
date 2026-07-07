@@ -70,10 +70,6 @@
       {/each}
     {/if}
   </div>
-
-  {#if target.probesError}
-    <p class="picker-error">{target.probesError}</p>
-  {/if}
 </div>
 
 <style>
@@ -169,15 +165,10 @@
     background: var(--color-accent-soft);
   }
 
-  .empty,
-  .picker-error {
+  .empty {
     margin: 0;
     color: var(--color-text-muted);
     font-size: var(--text-sm);
     padding: var(--space-2);
-  }
-
-  .picker-error {
-    color: var(--color-danger);
   }
 </style>

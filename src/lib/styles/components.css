@@ -374,35 +374,6 @@
   border-radius: var(--radius-pill);
 }
 
-/* ---- Feedback ------------------------------------------------------------*/
-.ui-callout {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-  border-radius: var(--radius-md);
-  font-size: var(--text-sm);
-  padding: var(--space-3) var(--space-4);
-  line-height: 1.5;
-}
-
-.ui-callout--danger {
-  border: 1px solid var(--color-danger-border);
-  background: var(--color-danger-soft);
-  color: var(--color-danger);
-}
-
-.ui-callout--success {
-  border: 1px solid var(--color-success-border);
-  background: var(--color-success-soft);
-  color: var(--color-success);
-}
-
-.ui-callout--warning {
-  border: 1px solid var(--color-warning-border);
-  background: var(--color-warning-soft);
-  color: var(--color-warning);
-}
-
 @media (max-width: 720px) {
   .ui-grid-2,
   .ui-grid-3 {

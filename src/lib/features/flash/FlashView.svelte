@@ -1,11 +1,8 @@
 <script lang="ts">
   import Icon from "$lib/components/Icon.svelte";
   import Segmented from "$lib/components/Segmented.svelte";
-  import JobProgress from "$lib/components/JobProgress.svelte";
   import { open } from "@tauri-apps/plugin-dialog";
   import folderIcon from "$lib/assets/icons/folder.svg?url";
-  import alertIcon from "$lib/assets/icons/alert.svg?url";
-  import checkIcon from "$lib/assets/icons/check.svg?url";
   import flashIcon from "$lib/assets/icons/flash.svg?url";
   import xIcon from "$lib/assets/icons/x.svg?url";
   import {
@@ -18,6 +15,7 @@
   import { parseAddressInput } from "$lib/utils/address";
   import { target } from "$lib/state/target.svelte";
   import { jobs, isStageTerminal } from "$lib/state/jobs.svelte";
+  import { appStatus } from "$lib/state/status.svelte";
 
   type EraseStrategy = "auto" | "full" | "skip";
   type AfterFlash = "reset" | "none";
@@ -33,8 +31,6 @@
   let dragActive = $state(false);
 
   let jobId = $state<string | null>(null);
-  let submitError = $state<string | null>(null);
-  let pickerError = $state<string | null>(null);
 
   let extension = $derived(fileExtension(firmwarePath));
   let fileName = $derived(baseName(firmwarePath));
@@ -74,12 +70,12 @@
   }
 
   function acceptPath(path: string) {
-    pickerError = null;
+    appStatus.clear();
     firmwarePath = path;
   }
 
   async function chooseFirmware() {
-    pickerError = null;
+    appStatus.clear();
 
     try {
       const selected = await open({
@@ -93,21 +89,24 @@
         acceptPath(selected);
       }
     } catch (err) {
-      pickerError = typeof err === "string" ? err : "无法选择文件";
+      appStatus.danger(
+        "固件选择",
+        typeof err === "string" ? err : "无法选择文件",
+      );
     }
   }
 
   function clearFirmware() {
     firmwarePath = "";
-    pickerError = null;
+    appStatus.clear();
   }
 
   async function submit() {
-    submitError = null;
+    appStatus.clear();
     jobId = null;
 
     if (isBin && parsedBinBaseAddress == null) {
-      submitError = "BIN 地址无效";
+      appStatus.danger("固件地址", "BIN 地址无效");
       return;
     }
 
@@ -124,9 +123,17 @@
     try {
       jobId = await flashFirmware(request);
     } catch (err) {
-      submitError = readableError(err, "烧录失败");
+      appStatus.danger("烧录失败", readableError(err, "烧录失败"));
     }
   }
+
+  $effect(() => {
+    if (isBin && parsedBinBaseAddress == null) {
+      appStatus.danger("固件地址", "BIN 地址格式无效");
+    } else if (appStatus.current?.label === "固件地址") {
+      appStatus.clear();
+    }
+  });
 
   $effect(() => {
     if (!isTauriRuntime()) return;
@@ -149,7 +156,7 @@
           if (match) {
             acceptPath(match);
           } else if (event.payload.paths.length > 0) {
-            pickerError = "仅支持 ELF / HEX / BIN 固件文件";
+            appStatus.danger("固件类型", "仅支持 ELF / HEX / BIN 固件文件");
           }
         }
       });
@@ -213,12 +220,6 @@
       {/if}
     </div>
 
-    {#if pickerError}
-      <p class="ui-callout ui-callout--danger">
-        <Icon src={alertIcon} size={14} />{pickerError}
-      </p>
-    {/if}
-
     {#if isBin}
       <label class="bin-address ui-field">
         <span>BIN 基地址</span>
@@ -227,11 +228,6 @@
           bind:value={binBaseAddress}
           placeholder="0x08000000"
         />
-        {#if parsedBinBaseAddress == null}
-          <span class="field-error">
-            <Icon src={alertIcon} size={12} />地址格式无效
-          </span>
-        {/if}
       </label>
     {/if}
 
@@ -311,22 +307,6 @@
     {#if !target.ready}
       <p class="cta-hint">先在上方连接设备，才能开始烧录</p>
     {/if}
-
-    <div class="result-zone">
-      <JobProgress {jobId} />
-
-      {#if submitError}
-        <p class="ui-callout ui-callout--danger">
-          <Icon src={alertIcon} size={14} />{submitError}
-        </p>
-      {/if}
-
-      {#if latest?.stage === "completed"}
-        <p class="ui-callout ui-callout--success">
-          <Icon src={checkIcon} size={14} />{latest.message}
-        </p>
-      {/if}
-    </div>
   </div>
 </section>
 
@@ -477,14 +457,6 @@
     max-width: 260px;
   }
 
-  .field-error {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--color-danger);
-    font-size: var(--text-2xs);
-  }
-
   .options-block {
     display: grid;
     gap: var(--space-3);
@@ -546,11 +518,6 @@
     color: var(--color-text-faint);
     font-size: var(--text-xs);
     text-align: center;
-  }
-
-  .result-zone {
-    display: grid;
-    gap: var(--space-2);
   }
 
   @media (max-width: 560px) {

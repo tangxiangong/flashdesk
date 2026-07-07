@@ -2,6 +2,7 @@
   import "$lib/styles/tokens.css";
   import "$lib/styles/components.css";
   import HeaderBar from "$lib/components/HeaderBar.svelte";
+  import StatusStrip from "$lib/components/StatusStrip.svelte";
   import ConnectionPanel from "$lib/features/target/ConnectionPanel.svelte";
   import FlashView from "$lib/features/flash/FlashView.svelte";
   import ToolsPanel from "$lib/features/tools/ToolsPanel.svelte";
@@ -57,6 +58,8 @@
   <ConnectionPanel />
 
   <main class="content" aria-label="烧录工作台" onwheel={handleWheel}>
+    <StatusStrip />
+
     <div
       class="workspace"
       style={`transform: translateY(-${currentPage * 100}%);`}
@@ -107,6 +110,7 @@
 
   .content {
     position: relative;
+    --status-strip-height: var(--space-8);
     min-height: 0;
     overflow: hidden;
   }
@@ -123,8 +127,8 @@
   .workspace-page {
     min-height: 0;
     overflow: auto;
-    padding: var(--space-8) calc(var(--space-5) + 28px) var(--space-8)
-      var(--space-5);
+    padding: var(--status-strip-height) calc(var(--space-5) + 28px)
+      var(--space-8) var(--space-5);
   }
 
   .workspace-page-inner {
@@ -171,8 +175,8 @@
 
   @media (max-width: 640px) {
     .workspace-page {
-      padding: var(--space-5) calc(var(--space-3) + 24px) var(--space-8)
-        var(--space-3);
+      padding: var(--status-strip-height) calc(var(--space-3) + 24px)
+        var(--space-8) var(--space-3);
     }
 
     .page-indicator {

@@ -1,6 +1,5 @@
 <script lang="ts">
   import Icon from "$lib/components/Icon.svelte";
-  import alertIcon from "$lib/assets/icons/alert.svg?url";
   import eyeIcon from "$lib/assets/icons/eye.svg?url";
   import {
     isTauriRuntime,
@@ -10,6 +9,7 @@
     type MemoryReadResult,
     type MemoryRegionLayout,
   } from "$lib/api/tauri";
+  import { appStatus } from "$lib/state/status.svelte";
   import { target } from "$lib/state/target.svelte";
   import { parseAddressInput } from "$lib/utils/address";
 
@@ -17,7 +17,6 @@
   let length = $state(128);
   let addressEdited = $state(false);
   let reading = $state(false);
-  let readError = $state<string | null>(null);
   let readResult = $state<MemoryReadResult | null>(null);
   let layoutLoading = $state(false);
   let layoutChip = $state("");
@@ -33,7 +32,6 @@
   $effect(() => {
     if (nextMemoryContext !== memoryContext) {
       memoryContext = nextMemoryContext;
-      readError = null;
       readResult = null;
     }
 
@@ -44,6 +42,14 @@
 
     if (isTauriRuntime() && chip !== layoutChip && !layoutLoading) {
       void loadDefaultAddress(chip);
+    }
+  });
+
+  $effect(() => {
+    if (target.connected && parsedAddress == null) {
+      appStatus.danger("内存读取", "地址无效");
+    } else if (appStatus.current?.label === "内存读取") {
+      appStatus.clear();
     }
   });
 
@@ -58,7 +64,6 @@
         (!addressEdited || address === "0x00000000")
       ) {
         address = hexAddress(defaultAddress);
-        readError = null;
       }
     } catch {
       // Memory layout is a convenience for choosing a sane default. Reading still
@@ -70,15 +75,16 @@
   }
 
   async function doRead() {
-    readError = null;
+    appStatus.clear();
     readResult = null;
 
     if (parsedAddress == null) {
-      readError = "地址无效";
+      appStatus.danger("内存读取", "地址无效");
       return;
     }
 
     reading = true;
+    appStatus.progress("读取内存", "正在读取目标内存");
 
     try {
       readResult = await readMemory({
@@ -87,8 +93,9 @@
         address: parsedAddress,
         length,
       });
+      appStatus.success("读取完成", `已读取 ${readResult.length} 字节`);
     } catch (err) {
-      readError = readableError(err, "读取失败");
+      appStatus.danger("读取失败", readableError(err, "读取失败"));
     } finally {
       reading = false;
     }
@@ -186,12 +193,6 @@
       {reading ? "读取中…" : "读取"}
     </button>
   </div>
-
-  {#if readError}
-    <p class="ui-callout ui-callout--danger">
-      <Icon src={alertIcon} size={14} />{readError}
-    </p>
-  {/if}
 
   <div class="memory-table ui-scrollbar" aria-label="内存数据">
     <div class="table-head">
