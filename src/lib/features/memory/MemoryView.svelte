@@ -9,6 +9,7 @@
     type MemoryReadResult,
     type MemoryRegionLayout,
   } from "$lib/api/tauri";
+  import { jobs } from "$lib/state/jobs.svelte";
   import { appStatus } from "$lib/state/status.svelte";
   import { target } from "$lib/state/target.svelte";
   import { parseAddressInput } from "$lib/utils/address";
@@ -21,15 +22,31 @@
   let layoutLoading = $state(false);
   let layoutChip = $state("");
   let memoryContext = $state("");
+  let observedConnection = $state<unknown>(null);
+  let connectionRefreshSeq = $state(0);
+  let pendingConnectRefreshKey = $state<string | null>(null);
+  let lastAutoRefreshKey = $state("");
 
   let chip = $derived(target.connected ? target.effectiveChip.trim() : "");
   let nextMemoryContext = $derived(
     target.connected && chip ? `${target.connection?.probe ?? ""}|${chip}` : "",
   );
   let parsedAddress = $derived(parseAddressInput(address));
+  let latestJob = $derived(jobs.events.at(-1));
   let rows = $derived(readResult ? toRows(readResult) : []);
 
   $effect(() => {
+    if (target.connection !== observedConnection) {
+      observedConnection = target.connection;
+      if (target.connected && nextMemoryContext) {
+        connectionRefreshSeq += 1;
+        pendingConnectRefreshKey = `connect:${connectionRefreshSeq}`;
+        readResult = null;
+      } else {
+        pendingConnectRefreshKey = null;
+      }
+    }
+
     if (nextMemoryContext !== memoryContext) {
       memoryContext = nextMemoryContext;
       readResult = null;
@@ -42,6 +59,10 @@
 
     if (isTauriRuntime() && chip !== layoutChip && !layoutLoading) {
       void loadDefaultAddress(chip);
+    } else if (pendingConnectRefreshKey && chip === layoutChip) {
+      const key = pendingConnectRefreshKey;
+      pendingConnectRefreshKey = null;
+      triggerAutoRefresh(key, "连接完成，正在刷新内存");
     }
   });
 
@@ -71,26 +92,71 @@
     } finally {
       layoutChip = nextChip;
       layoutLoading = false;
+      if (pendingConnectRefreshKey) {
+        const key = pendingConnectRefreshKey;
+        pendingConnectRefreshKey = null;
+        triggerAutoRefresh(key, "连接完成，正在刷新内存");
+      }
     }
   }
 
-  async function doRead() {
-    appStatus.clear();
-    readResult = null;
+  $effect(() => {
+    if (!latestJob || latestJob.stage !== "completed") {
+      return;
+    }
 
-    if (parsedAddress == null) {
+    if (latestJob.kind === "flash") {
+      triggerAutoRefresh(
+        `flash:${latestJob.id}:completed`,
+        "烧录完成，正在刷新内存",
+      );
+    } else if (latestJob.kind === "erase") {
+      triggerAutoRefresh(
+        `erase:${latestJob.id}:completed`,
+        "擦除完成，正在刷新内存",
+      );
+    }
+  });
+
+  function triggerAutoRefresh(key: string, message: string) {
+    if (key === lastAutoRefreshKey || reading) {
+      return;
+    }
+
+    lastAutoRefreshKey = key;
+    void readCurrentMemory(message, false);
+  }
+
+  async function readCurrentMemory(message: string, clearResult: boolean) {
+    if (!target.connected) {
+      return;
+    }
+
+    const addressToRead = parseAddressInput(address);
+
+    if (addressToRead == null) {
       appStatus.danger("内存读取", "地址无效");
       return;
     }
 
+    if (length <= 0) {
+      appStatus.danger("内存读取", "长度无效");
+      return;
+    }
+
+    appStatus.clear();
+    if (clearResult) {
+      readResult = null;
+    }
+
     reading = true;
-    appStatus.progress("读取内存", "正在读取目标内存");
+    appStatus.progress("读取内存", message);
 
     try {
       readResult = await readMemory({
         probe: target.probe,
         target: target.selection(),
-        address: parsedAddress,
+        address: addressToRead,
         length,
       });
       appStatus.success("读取完成", `已读取 ${readResult.length} 字节`);
@@ -99,6 +165,10 @@
     } finally {
       reading = false;
     }
+  }
+
+  async function doRead() {
+    await readCurrentMemory("正在读取目标内存", true);
   }
 
   function markAddressEdited() {
