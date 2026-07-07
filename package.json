@@ -1,6 +1,6 @@
 {
   "name": "flashdesk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "FlashDesk desktop app for firmware flashing workflows",
   "type": "module",
   "scripts": {
