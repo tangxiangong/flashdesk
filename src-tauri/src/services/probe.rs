@@ -1,9 +1,14 @@
 use crate::{
     error::{AppError, Result},
-    models::{ConnectRequest, ConnectionInfo, ProbeSummary, WireProtocol},
+    models::{ConnectRequest, ConnectionInfo, ProbeSummary, TargetCandidate, WireProtocol},
+    services::target::arm_target_candidates,
 };
 use probe_rs::{
     Permissions,
+    architecture::arm::{
+        ArmChipInfo, dp::DpAddress, memory::romtable::Component, sequences::DefaultArmSequence,
+    },
+    config::{Registry, RegistryError},
     probe::{
         DebugProbeInfo, DebugProbeSelector, DebugProbeSelectorParseError,
         WireProtocol as ProbeWireProtocol, list::Lister,
@@ -57,12 +62,27 @@ pub fn connect_target(request: ConnectRequest) -> Result<ConnectionInfo> {
         probe.set_speed(speed_khz).map_err(probe_rs_error)?;
     }
 
-    let session = if request.target.connect_under_reset {
+    let session_result = if request.target.connect_under_reset {
         probe.attach_under_reset(target_selector, Permissions::default())
     } else {
         probe.attach(target_selector, Permissions::default())
-    }
-    .map_err(probe_rs_error)?;
+    };
+    let session = match session_result {
+        Ok(session) => session,
+        Err(error) if target_selector.is_none() && is_chip_autodetect_failure(&error) => {
+            let candidates = identify_target_candidates(
+                &probe_identifier,
+                protocol,
+                request.target.speed_khz,
+                request.target.connect_under_reset,
+            );
+            return Err(AppError::TargetIdentifyFailed {
+                detail: target_identify_detail(candidates.as_ref(), &error),
+                candidates: candidates.unwrap_or_default(),
+            });
+        }
+        Err(error) => return Err(probe_rs_error(error)),
+    };
     let chip = session.target().name.clone();
 
     Ok(ConnectionInfo {
@@ -72,6 +92,104 @@ pub fn connect_target(request: ConnectRequest) -> Result<ConnectionInfo> {
         speed_khz: request.target.speed_khz,
         connect_under_reset: request.target.connect_under_reset,
     })
+}
+
+fn identify_target_candidates(
+    probe_identifier: &str,
+    protocol: ProbeWireProtocol,
+    speed_khz: Option<u32>,
+    connect_under_reset: bool,
+) -> std::result::Result<Vec<TargetCandidate>, String> {
+    let selector: DebugProbeSelector = probe_identifier
+        .try_into()
+        .map_err(|err: DebugProbeSelectorParseError| err.to_string())?;
+    let mut probe = Lister::new()
+        .open(selector)
+        .map_err(|err| err.to_string())?;
+    probe
+        .select_protocol(protocol)
+        .map_err(|err| err.to_string())?;
+
+    if let Some(speed_khz) = speed_khz {
+        probe.set_speed(speed_khz).map_err(|err| err.to_string())?;
+    }
+
+    if connect_under_reset {
+        probe
+            .attach_to_unspecified_under_reset()
+            .map_err(|err| err.to_string())?;
+    } else {
+        probe
+            .attach_to_unspecified()
+            .map_err(|err| err.to_string())?;
+    }
+
+    let Some(chip_info) = read_arm_chip_info(probe).map_err(|err| err.to_string())? else {
+        return Ok(Vec::new());
+    };
+
+    let registry = Registry::from_builtin_families();
+    Ok(arm_target_candidates(&registry, chip_info))
+}
+
+fn read_arm_chip_info(
+    probe: probe_rs::probe::Probe,
+) -> std::result::Result<Option<ArmChipInfo>, probe_rs::Error> {
+    if !probe.has_arm_debug_interface() {
+        return Ok(None);
+    }
+
+    let interface = match probe.try_into_arm_debug_interface(DefaultArmSequence::create()) {
+        Ok(interface) => interface,
+        Err((_returned_probe, error)) => return Err(error.into()),
+    };
+
+    let mut interface = interface;
+    let dp_address = DpAddress::Default;
+    let mut found_chip_info = None;
+    for ap in interface.access_ports(dp_address)? {
+        if let Ok(mut memory) = interface.memory_interface(&ap) {
+            let base_address = memory.base_address()?;
+            let component = Component::try_parse(&mut *memory, base_address)
+                .map_err(|err| probe_rs::Error::Other(err.to_string()))?;
+
+            if let Component::Class1RomTable(component_id, _) = component
+                && let Some(jep106) = component_id.peripheral_id().jep106()
+            {
+                found_chip_info = Some(ArmChipInfo {
+                    manufacturer: jep106,
+                    part: component_id.peripheral_id().part(),
+                });
+                break;
+            }
+        }
+    }
+
+    let _probe = interface.close();
+    Ok(found_chip_info)
+}
+
+fn is_chip_autodetect_failure(error: &probe_rs::Error) -> bool {
+    matches!(
+        error,
+        probe_rs::Error::ChipNotFound(RegistryError::ChipAutodetectFailed)
+    )
+}
+
+fn target_identify_detail(
+    candidates: std::result::Result<&Vec<TargetCandidate>, &String>,
+    error: &probe_rs::Error,
+) -> String {
+    match candidates {
+        Ok(candidates) if !candidates.is_empty() => {
+            format!(
+                "自动识别未能唯一确定目标，已缩小到 {} 个候选",
+                candidates.len()
+            )
+        }
+        Ok(_) => format!("自动识别未能确定目标，且当前探测信息没有匹配候选：{error}"),
+        Err(detail) => format!("自动识别失败，候选探测也失败：{detail}"),
+    }
 }
 
 fn select_probe_identifier(identifier: Option<&str>, probes: &[ProbeSummary]) -> Result<String> {

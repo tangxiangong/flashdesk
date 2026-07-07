@@ -62,7 +62,7 @@
     } else if (pendingConnectRefreshKey && chip === layoutChip) {
       const key = pendingConnectRefreshKey;
       pendingConnectRefreshKey = null;
-      triggerAutoRefresh(key, "连接完成，正在刷新内存");
+      triggerAutoRefresh(key);
     }
   });
 
@@ -95,7 +95,7 @@
       if (pendingConnectRefreshKey) {
         const key = pendingConnectRefreshKey;
         pendingConnectRefreshKey = null;
-        triggerAutoRefresh(key, "连接完成，正在刷新内存");
+        triggerAutoRefresh(key);
       }
     }
   }
@@ -106,28 +106,26 @@
     }
 
     if (latestJob.kind === "flash") {
-      triggerAutoRefresh(
-        `flash:${latestJob.id}:completed`,
-        "烧录完成，正在刷新内存",
-      );
+      triggerAutoRefresh(`flash:${latestJob.id}:completed`);
     } else if (latestJob.kind === "erase") {
-      triggerAutoRefresh(
-        `erase:${latestJob.id}:completed`,
-        "擦除完成，正在刷新内存",
-      );
+      triggerAutoRefresh(`erase:${latestJob.id}:completed`);
     }
   });
 
-  function triggerAutoRefresh(key: string, message: string) {
+  function triggerAutoRefresh(key: string) {
     if (key === lastAutoRefreshKey || reading) {
       return;
     }
 
     lastAutoRefreshKey = key;
-    void readCurrentMemory(message, false);
+    void readCurrentMemory("正在读取目标内存", false, true);
   }
 
-  async function readCurrentMemory(message: string, clearResult: boolean) {
+  async function readCurrentMemory(
+    message: string,
+    clearResult: boolean,
+    silent = false,
+  ) {
     if (!target.connected) {
       return;
     }
@@ -135,22 +133,30 @@
     const addressToRead = parseAddressInput(address);
 
     if (addressToRead == null) {
-      appStatus.danger("内存读取", "地址无效");
+      if (!silent) {
+        appStatus.danger("内存读取", "地址无效");
+      }
       return;
     }
 
     if (length <= 0) {
-      appStatus.danger("内存读取", "长度无效");
+      if (!silent) {
+        appStatus.danger("内存读取", "长度无效");
+      }
       return;
     }
 
-    appStatus.clear();
+    if (!silent) {
+      appStatus.clear();
+    }
     if (clearResult) {
       readResult = null;
     }
 
     reading = true;
-    appStatus.progress("读取内存", message);
+    if (!silent) {
+      appStatus.progress("读取内存", message);
+    }
 
     try {
       readResult = await readMemory({
@@ -159,9 +165,13 @@
         address: addressToRead,
         length,
       });
-      appStatus.success("读取完成", `已读取 ${readResult.length} 字节`);
+      if (!silent) {
+        appStatus.success("读取完成", `已读取 ${readResult.length} 字节`);
+      }
     } catch (err) {
-      appStatus.danger("读取失败", readableError(err, "读取失败"));
+      if (!silent) {
+        appStatus.danger("读取失败", readableError(err, "读取失败"));
+      }
     } finally {
       reading = false;
     }

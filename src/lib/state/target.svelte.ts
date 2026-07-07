@@ -3,8 +3,10 @@ import {
   listProbes,
   readableError,
   searchChips,
+  targetCandidatesFromError,
   type ConnectionInfo,
   type ProbeSummary,
+  type TargetCandidate,
   type WireProtocol,
 } from "$lib/api/tauri";
 
@@ -55,6 +57,10 @@ class TargetState {
   chipResults = $state<string[]>([]);
   /** 芯片搜索请求是否仍在进行。 */
   chipSearching = $state(false);
+  /** 自动识别失败时后端缩小出的目标候选。 */
+  targetCandidates = $state<TargetCandidate[]>([]);
+  /** 候选弹窗触发序号，用于前端只在新候选出现时自动打开一次。 */
+  candidatePromptSeq = $state(0);
 
   /** 当前探针标识对应的探针摘要。 */
   selectedProbeSummary = $derived(
@@ -114,11 +120,22 @@ class TargetState {
       );
       this.chipResults = [];
       this.chipQuery = "";
+      this.targetCandidates = [];
     } catch (err) {
+      const candidates = targetCandidatesFromError(err);
       this.connection = null;
       this.detectedChip = "";
       this.connectedSelectionKey = "";
-      this.connectError = readableError(err);
+      this.targetCandidates = candidates;
+      if (candidates.length > 0) {
+        this.candidatePromptSeq += 1;
+        this.chipResults = candidates.map((candidate) => candidate.name);
+        this.chipQuery = "";
+      }
+      this.connectError =
+        candidates.length > 0
+          ? `${readableError(err)}，请选择候选目标`
+          : readableError(err);
     } finally {
       this.connecting = false;
     }
@@ -130,6 +147,7 @@ class TargetState {
     this.detectedChip = "";
     this.connectedSelectionKey = "";
     this.connectError = null;
+    this.targetCandidates = [];
   }
 
   /** 重新枚举本机可用调试探针，并处理自动选择和失效选择。 */
@@ -178,6 +196,7 @@ class TargetState {
     this.chip = chip;
     this.chipResults = [];
     this.chipQuery = "";
+    this.targetCandidates = [];
     this.disconnect();
   }
 

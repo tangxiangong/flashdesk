@@ -24,6 +24,7 @@
   let chipOpen = $state(false);
   let gearOpen = $state(false);
   let didInitialProbeScan = $state(false);
+  let openedCandidatePromptSeq = $state(0);
 
   let layoutLoading = $state(false);
   let regions = $state<MemoryRegionLayout[]>([]);
@@ -146,6 +147,16 @@
 
     if (isTauriRuntime() && chip !== loadedChip && !layoutLoading) {
       void loadLayout(chip);
+    }
+  });
+
+  $effect(() => {
+    if (
+      target.candidatePromptSeq > openedCandidatePromptSeq &&
+      target.targetCandidates.length > 0
+    ) {
+      openedCandidatePromptSeq = target.candidatePromptSeq;
+      chipOpen = true;
     }
   });
 </script>

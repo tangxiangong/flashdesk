@@ -14,6 +14,9 @@
   let draft = $state(target.chip);
   let debounceHandle: ReturnType<typeof setTimeout> | undefined;
   let inputEl: HTMLInputElement | undefined;
+  let candidateNames = $derived(
+    new Set(target.targetCandidates.map((candidate) => candidate.name)),
+  );
 
   $effect(() => {
     inputEl?.focus();
@@ -26,14 +29,20 @@
   }
 
   function commit(value: string) {
+    const shouldReconnect = target.targetCandidates.some(
+      (candidate) => candidate.name === value,
+    );
     target.pickChip(value);
     draft = value;
     close();
+    if (shouldReconnect) {
+      void target.connect();
+    }
   }
 </script>
 
 <div class="picker">
-  <h3>型号覆盖</h3>
+  <h3>{target.targetCandidates.length > 0 ? "选择候选目标" : "型号覆盖"}</h3>
 
   <label class="search-field">
     <Icon src={searchIcon} size={15} />
@@ -55,13 +64,18 @@
       <p class="empty">搜索中…</p>
     {:else if target.chipResults.length > 0}
       {#each target.chipResults as result (result)}
+        {@const candidate = target.targetCandidates.find((item) => item.name === result)}
         <button
           type="button"
           class="chip-row"
           class:selected={target.chip === result}
+          class:candidate={candidateNames.has(result)}
           onclick={() => commit(result)}
         >
           <strong class="ui-mono">{result}</strong>
+          {#if candidate}
+            <span>{candidate.family}</span>
+          {/if}
         </button>
       {/each}
     {:else if draft.trim()}

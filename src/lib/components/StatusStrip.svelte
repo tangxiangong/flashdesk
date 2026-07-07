@@ -123,7 +123,7 @@
         icon: checkIcon,
         label: "目标已连接",
         message: `${target.effectiveChip || "已识别目标"} · ${target.protocol.toUpperCase()} · ${target.speedKhz} kHz`,
-        progress: 100,
+        progress: null,
         pulse: false,
         dismissible: false,
       };
@@ -133,7 +133,7 @@
       tone: "info",
       icon: infoIcon,
       label: "准备连接",
-      message: "选择探针和芯片，连接后即可烧录、擦除或读取内存",
+      message: "选择探针后连接；芯片会自动识别，失败时再从候选中选择",
       progress: null,
       pulse: false,
       dismissible: false,
@@ -183,15 +183,14 @@
     </button>
   {/if}
 
-  <div
-    class="status-progress"
-    aria-hidden={status.progress == null ? "true" : undefined}
-  >
-    <span
-      class="status-progress-fill"
-      style={`width:${status.progress ?? (status.pulse ? 32 : 0)}%`}
-    ></span>
-  </div>
+  {#if status.progress != null || status.pulse}
+    <div class="status-progress" aria-hidden="true">
+      <span
+        class="status-progress-fill"
+        style={`width:${status.progress ?? 32}%`}
+      ></span>
+    </div>
+  {/if}
 </div>
 
 <style>

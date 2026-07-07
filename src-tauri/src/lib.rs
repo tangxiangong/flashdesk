@@ -100,6 +100,7 @@ pub fn run() {
             commands::probe::search_chips,
             commands::probe::target_memory_map,
             commands::flash::flash_firmware,
+            commands::flash::firmware_usage,
             commands::memory::read_memory,
             commands::memory::erase_target,
             commands::storage::load_profiles,

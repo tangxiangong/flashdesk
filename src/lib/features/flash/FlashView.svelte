@@ -6,11 +6,15 @@
   import flashIcon from "$lib/assets/icons/flash.svg?url";
   import xIcon from "$lib/assets/icons/x.svg?url";
   import {
+    firmwareUsage,
     flashFirmware,
     isTauriRuntime,
     readableError,
+    targetMemoryMap,
+    type FirmwareUsage,
     type FlashOptions,
     type FlashRequest,
+    type MemoryRegionLayout,
   } from "$lib/api/tauri";
   import { parseAddressInput } from "$lib/utils/address";
   import { target } from "$lib/state/target.svelte";
@@ -29,6 +33,11 @@
   let eraseStrategy = $state<EraseStrategy>("auto");
   let afterFlash = $state<AfterFlash>("reset");
   let dragActive = $state(false);
+  let usageLoading = $state(false);
+  let usage = $state<FirmwareUsage | null>(null);
+  let usageError = $state<string | null>(null);
+  let memoryRegions = $state<MemoryRegionLayout[]>([]);
+  let memoryLayoutChip = $state("");
 
   let jobId = $state<string | null>(null);
 
@@ -45,6 +54,16 @@
       firmwarePath.trim().length > 0 &&
       target.ready &&
       (!isBin || parsedBinBaseAddress != null),
+  );
+  let flashTotalBytes = $derived(
+    memoryRegions
+      .filter((region) => region.kind === "nvm" && !region.isAlias)
+      .reduce((sum, region) => sum + region.size, 0),
+  );
+  let usagePercent = $derived(
+    usage && flashTotalBytes > 0
+      ? Math.min(999.9, (usage.usedBytes / flashTotalBytes) * 100)
+      : null,
   );
 
   function fileExtension(path: string): string {
@@ -67,6 +86,32 @@
       allowEraseAll: eraseStrategy === "full",
       resetAfter: afterFlash === "reset",
     };
+  }
+
+  function sizeLabel(bytes: number): string {
+    if (!Number.isFinite(bytes) || bytes <= 0) return "--";
+    if (bytes >= 1024 * 1024) {
+      return `${(bytes / (1024 * 1024)).toFixed(bytes % (1024 * 1024) === 0 ? 0 : 1)} MiB`;
+    }
+    if (bytes >= 1024) {
+      return `${(bytes / 1024).toFixed(bytes % 1024 === 0 ? 0 : 1)} KiB`;
+    }
+    return `${bytes} B`;
+  }
+
+  function addressLabel(address: number | null | undefined): string {
+    if (address == null) return "--";
+    return `0x${Math.trunc(address).toString(16).toUpperCase().padStart(8, "0")}`;
+  }
+
+  function lastAddressLabel(endAddress: number | null | undefined): string {
+    if (endAddress == null) return "--";
+    return addressLabel(Math.max(0, endAddress - 1));
+  }
+
+  function percentLabel(value: number | null): string {
+    if (value == null) return "--";
+    return `${value.toFixed(value >= 10 ? 1 : 2)}%`;
   }
 
   function acceptPath(path: string) {
@@ -133,6 +178,81 @@
     } else if (appStatus.current?.label === "固件地址") {
       appStatus.clear();
     }
+  });
+
+  $effect(() => {
+    if (!isTauriRuntime()) return;
+
+    const chip = target.connected ? target.effectiveChip.trim() : "";
+    if (!chip) {
+      memoryRegions = [];
+      memoryLayoutChip = "";
+      return;
+    }
+
+    if (chip === memoryLayoutChip) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const regions = await targetMemoryMap(chip);
+        if (!cancelled) {
+          memoryRegions = regions;
+          memoryLayoutChip = chip;
+        }
+      } catch {
+        if (!cancelled) {
+          memoryRegions = [];
+          memoryLayoutChip = chip;
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  });
+
+  $effect(() => {
+    if (!isTauriRuntime()) return;
+
+    const path = firmwarePath.trim();
+    const baseAddress = isBin ? parsedBinBaseAddress : null;
+    if (!path || (isBin && baseAddress == null)) {
+      usage = null;
+      usageError = null;
+      usageLoading = false;
+      return;
+    }
+
+    let cancelled = false;
+    usageLoading = true;
+    usageError = null;
+
+    void (async () => {
+      try {
+        const nextUsage = await firmwareUsage({
+          path,
+          baseAddress,
+        });
+        if (!cancelled) {
+          usage = nextUsage;
+        }
+      } catch (err) {
+        if (!cancelled) {
+          usage = null;
+          usageError = readableError(err, "无法分析 Flash 占用");
+        }
+      } finally {
+        if (!cancelled) {
+          usageLoading = false;
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   });
 
   $effect(() => {
@@ -229,6 +349,38 @@
           placeholder="0x08000000"
         />
       </label>
+    {/if}
+
+    {#if firmwarePath}
+      <div class="usage-strip" aria-live="polite">
+        <span class="ui-label">Flash 占用</span>
+        {#if usageLoading}
+          <strong>分析中…</strong>
+          <span>正在读取固件写入范围</span>
+        {:else if usage}
+          <strong>
+            {sizeLabel(usage.usedBytes)}
+            {#if usagePercent != null}
+              <em>{percentLabel(usagePercent)}</em>
+            {/if}
+          </strong>
+          <span class="ui-mono">
+            {addressLabel(usage.startAddress)} - {lastAddressLabel(usage.endAddress)}
+            {#if usage.segments.length > 1}
+              · {usage.segments.length} 段
+            {/if}
+          </span>
+          {#if usagePercent == null}
+            <span>连接目标后显示占比</span>
+          {/if}
+        {:else if usageError}
+          <strong>无法分析</strong>
+          <span>{usageError}</span>
+        {:else}
+          <strong>--</strong>
+          <span>选择有效固件后显示</span>
+        {/if}
+      </div>
     {/if}
 
     <div class="options-block">
@@ -457,6 +609,43 @@
     max-width: 260px;
   }
 
+  .usage-strip {
+    display: grid;
+    grid-template-columns: minmax(88px, auto) minmax(120px, auto) minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--space-3);
+    row-gap: 4px;
+    border-top: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+    padding: var(--space-3) 0;
+  }
+
+  .usage-strip strong {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .usage-strip em {
+    color: var(--color-accent);
+    font-style: normal;
+    font-size: var(--text-xs);
+    font-weight: 800;
+  }
+
+  .usage-strip span:not(.ui-label) {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .options-block {
     display: grid;
     gap: var(--space-3);
@@ -522,6 +711,10 @@
 
   @media (max-width: 560px) {
     .options-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .usage-strip {
       grid-template-columns: 1fr;
     }
   }

@@ -41,6 +41,32 @@ export interface FirmwareInput {
   baseAddress?: number | null;
 }
 
+/** 固件文件中会被写入 Flash 的地址段。 */
+export interface FirmwareUsageSegment {
+  /** 起始写入地址。 */
+  start: number;
+  /** 结束地址，开区间。 */
+  end: number;
+  /** 该连续地址段的字节数。 */
+  size: number;
+}
+
+/** 固件 Flash 占用分析结果。 */
+export interface FirmwareUsage {
+  /** 解析采用的固件格式。 */
+  format: FirmwareFormat;
+  /** 去重合并后的实际写入字节数。 */
+  usedBytes: number;
+  /** 从最小写入地址到最大写入地址的覆盖跨度，包含空洞。 */
+  spanBytes: number;
+  /** 最小写入地址。 */
+  startAddress?: number | null;
+  /** 最大写入地址，开区间。 */
+  endAddress?: number | null;
+  /** 合并后的连续写入地址段。 */
+  segments: FirmwareUsageSegment[];
+}
+
 /** 可用调试探针的摘要信息。 */
 export interface ProbeSummary {
   /** probe-rs 可解析的探针选择器字符串。 */
@@ -123,10 +149,18 @@ export interface MemoryReadResult {
   dataHex: string;
 }
 
+export interface TargetCandidate {
+  /** probe-rs 可接收的目标名称。 */
+  name: string;
+  /** 候选所属芯片族。 */
+  family: string;
+}
+
 interface AppErrorResponse {
   message?: unknown;
   detail?: unknown;
   recovery?: unknown;
+  targetCandidates?: unknown;
 }
 
 /** 前端提交的一次连接探测请求。 */
@@ -268,6 +302,13 @@ export async function flashFirmware(request: FlashRequest): Promise<string> {
   return invokeCommand("flash_firmware", { request });
 }
 
+/** 分析固件会写入的 Flash 字节数和地址范围。 */
+export async function firmwareUsage(
+  input: FirmwareInput,
+): Promise<FirmwareUsage> {
+  return invokeCommand("firmware_usage", { input });
+}
+
 /** 同步读取目标内存并返回十六进制字符串。 */
 export async function readMemory(
   request: MemoryRequest,
@@ -305,6 +346,23 @@ export function readableError(err: unknown, fallback = "操作失败"): string {
   }
 
   return fallback;
+}
+
+/** 从后端错误响应中提取自动识别候选目标。 */
+export function targetCandidatesFromError(err: unknown): TargetCandidate[] {
+  if (!err || typeof err !== "object") return [];
+
+  const candidates = (err as AppErrorResponse).targetCandidates;
+  if (!Array.isArray(candidates)) return [];
+
+  return candidates.filter((candidate): candidate is TargetCandidate => {
+    return (
+      candidate != null &&
+      typeof candidate === "object" &&
+      typeof (candidate as TargetCandidate).name === "string" &&
+      typeof (candidate as TargetCandidate).family === "string"
+    );
+  });
 }
 
 /** 从应用数据目录加载用户保存的烧录配置。 */

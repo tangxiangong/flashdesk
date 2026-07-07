@@ -1,7 +1,8 @@
 use crate::{
     error::{AppError, Result},
-    models::{MemoryAccessInfo, MemoryRegionKind, MemoryRegionLayout},
+    models::{MemoryAccessInfo, MemoryRegionKind, MemoryRegionLayout, TargetCandidate},
 };
+use probe_rs::architecture::arm::ArmChipInfo;
 use probe_rs::config::{MemoryRegion, Registry};
 use std::collections::HashSet;
 
@@ -65,6 +66,29 @@ fn dedupe_chip_names(chips: Vec<String>) -> Vec<String> {
         .collect()
 }
 
+pub(crate) fn arm_target_candidates(
+    registry: &Registry,
+    chip_info: ArmChipInfo,
+) -> Vec<TargetCandidate> {
+    let mut seen = HashSet::new();
+    registry
+        .families()
+        .iter()
+        .filter(|family| family.manufacturer == Some(chip_info.manufacturer))
+        .flat_map(|family| {
+            family
+                .variants
+                .iter()
+                .filter(move |variant| variant.part == Some(chip_info.part))
+                .map(move |variant| TargetCandidate {
+                    name: variant.name.clone(),
+                    family: family.name.clone(),
+                })
+        })
+        .filter(|candidate| seen.insert(candidate.name.clone()))
+        .collect()
+}
+
 fn memory_region_layout(region: MemoryRegion) -> MemoryRegionLayout {
     let range = region.address_range();
     let size = range.end.saturating_sub(range.start);
@@ -125,6 +149,7 @@ fn access_info(access: probe_rs::config::MemoryAccess) -> MemoryAccessInfo {
 mod tests {
     use super::*;
     use crate::error::AppError;
+    use probe_rs::architecture::arm::ArmChipInfo;
 
     #[test]
     fn require_chip_should_return_explicit_chip() {
@@ -203,5 +228,52 @@ mod tests {
                 "STM32F103ZE".to_string()
             ]
         );
+    }
+
+    #[test]
+    fn arm_target_candidates_should_match_same_manufacturer_and_part() {
+        let registry = Registry::from_builtin_families();
+        let chip_info = first_arm_chip_info(&registry);
+
+        let candidates = arm_target_candidates(&registry, chip_info);
+
+        assert!(!candidates.is_empty(), "expected narrowed candidates");
+    }
+
+    #[test]
+    fn arm_target_candidates_should_exclude_other_parts() {
+        let registry = Registry::from_builtin_families();
+        let chip_info = first_arm_chip_info(&registry);
+
+        let candidates = arm_target_candidates(&registry, chip_info);
+
+        assert!(
+            candidates
+                .iter()
+                .all(|candidate| candidate.name != "Generic ARMv7-M"),
+            "generic targets without matching chip part must not be included",
+        );
+    }
+
+    fn first_arm_chip_info(registry: &Registry) -> ArmChipInfo {
+        for family in registry
+            .families()
+            .iter()
+            .filter(|family| family.manufacturer.is_some())
+        {
+            for variant in &family.variants {
+                let Some(part) = variant.part else {
+                    continue;
+                };
+                return ArmChipInfo {
+                    manufacturer: family
+                        .manufacturer
+                        .expect("test filtered families with manufacturers"),
+                    part,
+                };
+            }
+        }
+
+        panic!("builtin registry should contain at least one ARM part");
     }
 }

@@ -1101,6 +1101,8 @@ name = "flashdesk"
 version = "0.2.0"
 dependencies = [
  "chrono",
+ "ihex",
+ "object 0.38.1",
  "probe-rs",
  "sanitize-filename",
  "serde",
@@ -2675,7 +2677,9 @@ version = "0.38.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "271638cd5fa9cca89c4c304675ca658efc4e64a66c716b7cfe1afb4b9611dbbc"
 dependencies = [
+ "flate2",
  "memchr",
+ "ruzstd",
 ]
 
 [[package]]

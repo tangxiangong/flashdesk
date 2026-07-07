@@ -1,8 +1,14 @@
 use crate::{
     error::{AppError, Result},
-    models::{FirmwareFormat, FirmwareInput},
+    models::{FirmwareFormat, FirmwareInput, FirmwareUsage, FirmwareUsageSegment},
 };
-use std::path::Path;
+use ihex::Record;
+use object::{
+    Endianness,
+    elf::{FileHeader32, FileHeader64, PT_LOAD},
+    read::elf::{FileHeader, ProgramHeader},
+};
+use std::{fs, path::Path};
 
 /// 根据文件扩展名推断固件格式。
 pub fn detect_format(path: &Path) -> Result<FirmwareFormat> {
@@ -50,6 +56,19 @@ pub fn validate_firmware(input: &FirmwareInput) -> Result<FirmwareFormat> {
     Ok(detected)
 }
 
+/// 分析固件文件中实际会写入 Flash 的地址范围和字节数。
+pub fn analyze_firmware_usage(input: &FirmwareInput) -> Result<FirmwareUsage> {
+    let format = validate_firmware(input)?;
+    let path = Path::new(&input.path);
+    let segments = match format {
+        FirmwareFormat::Bin => analyze_bin_usage(path, input.base_address)?,
+        FirmwareFormat::Hex => analyze_hex_usage(path)?,
+        FirmwareFormat::Elf => analyze_elf_usage(path)?,
+    };
+
+    Ok(usage_from_segments(format, segments))
+}
+
 /// 解析用户输入的十进制或 `0x` 前缀十六进制地址。
 pub fn parse_address(value: &str) -> Result<u64> {
     let trimmed = value.trim();
@@ -81,6 +100,157 @@ fn validate_flash_address(address: u64) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn analyze_bin_usage(path: &Path, base_address: Option<u64>) -> Result<Vec<FirmwareUsageSegment>> {
+    let base_address = base_address.ok_or(AppError::MissingBinBaseAddress)?;
+    let size = fs::metadata(path).map_err(AppError::IoFailure)?.len();
+
+    Ok(vec![FirmwareUsageSegment {
+        start: base_address,
+        end: base_address.saturating_add(size),
+        size,
+    }])
+}
+
+fn analyze_hex_usage(path: &Path) -> Result<Vec<FirmwareUsageSegment>> {
+    let data = fs::read_to_string(path).map_err(AppError::IoFailure)?;
+    let mut base_address = 0u64;
+    let mut segments = Vec::new();
+
+    for record in ihex::Reader::new(&data) {
+        match record.map_err(|err| AppError::InvalidUserInput {
+            detail: format!("HEX 解析失败：{err}"),
+        })? {
+            Record::Data { offset, value } => {
+                let start = base_address + u64::from(offset);
+                push_segment(&mut segments, start, value.len() as u64);
+            }
+            Record::ExtendedSegmentAddress(address) => {
+                base_address = u64::from(address) * 16;
+            }
+            Record::ExtendedLinearAddress(address) => {
+                base_address = u64::from(address) << 16;
+            }
+            Record::EndOfFile
+            | Record::StartSegmentAddress { .. }
+            | Record::StartLinearAddress(_) => {}
+        }
+    }
+
+    Ok(segments)
+}
+
+fn analyze_elf_usage(path: &Path) -> Result<Vec<FirmwareUsageSegment>> {
+    let data = fs::read(path).map_err(AppError::IoFailure)?;
+    let file_kind = object::FileKind::parse(&*data).map_err(|err| AppError::InvalidUserInput {
+        detail: format!("ELF 解析失败：{err}"),
+    })?;
+
+    match file_kind {
+        object::FileKind::Elf32 => {
+            let header = FileHeader32::<Endianness>::parse(&*data).map_err(elf_parse_error)?;
+            extract_elf_segments(header, &data)
+        }
+        object::FileKind::Elf64 => {
+            let header = FileHeader64::<Endianness>::parse(&*data).map_err(elf_parse_error)?;
+            extract_elf_segments(header, &data)
+        }
+        _ => Err(AppError::InvalidUserInput {
+            detail: "固件不是 ELF 文件".to_string(),
+        }),
+    }
+}
+
+fn extract_elf_segments<T: FileHeader>(
+    header: &T,
+    data: &[u8],
+) -> Result<Vec<FirmwareUsageSegment>> {
+    let endian = header.endian().map_err(elf_parse_error)?;
+    let mut segments = Vec::new();
+
+    for segment in header
+        .program_headers(endian, data)
+        .map_err(elf_parse_error)?
+    {
+        let segment_data = segment
+            .data(endian, data)
+            .map_err(|_| AppError::InvalidUserInput {
+                detail: "ELF 解析失败：无法读取 loadable segment 数据".to_string(),
+            })?;
+        if segment_data.is_empty() || segment.p_type(endian) != PT_LOAD {
+            continue;
+        }
+
+        let (offset, file_size) = segment.file_range(endian);
+        if file_size == 0 {
+            continue;
+        }
+
+        let _file_range = offset..offset + file_size;
+        push_segment(&mut segments, segment.p_paddr(endian).into(), file_size);
+    }
+
+    Ok(segments)
+}
+
+fn usage_from_segments(
+    format: FirmwareFormat,
+    mut segments: Vec<FirmwareUsageSegment>,
+) -> FirmwareUsage {
+    segments.sort_by_key(|segment| segment.start);
+
+    let used_bytes = segments.iter().map(|segment| segment.size).sum();
+    let start_address = segments.first().map(|segment| segment.start);
+    let end_address = segments.iter().map(|segment| segment.end).max();
+    let span_bytes = match (start_address, end_address) {
+        (Some(start), Some(end)) => end.saturating_sub(start),
+        _ => 0,
+    };
+
+    FirmwareUsage {
+        format,
+        used_bytes,
+        span_bytes,
+        start_address,
+        end_address,
+        segments,
+    }
+}
+
+fn push_segment(segments: &mut Vec<FirmwareUsageSegment>, start: u64, size: u64) {
+    if size == 0 {
+        return;
+    }
+
+    let end = start.saturating_add(size);
+    segments.push(FirmwareUsageSegment { start, end, size });
+    merge_segments(segments);
+}
+
+fn merge_segments(segments: &mut Vec<FirmwareUsageSegment>) {
+    segments.sort_by_key(|segment| segment.start);
+    let mut merged: Vec<FirmwareUsageSegment> = Vec::new();
+
+    for segment in segments.drain(..) {
+        if let Some(last) = merged.last_mut()
+            && segment.start <= last.end
+        {
+            last.end = last.end.max(segment.end);
+            last.size = last.end.saturating_sub(last.start);
+            continue;
+        }
+
+        merged.push(segment);
+    }
+
+    *segments = merged;
+}
+
+fn elf_parse_error(error: object::Error) -> AppError {
+    AppError::InvalidUserInput {
+        detail: format!("ELF 解析失败：{error}"),
+    }
 }
 
 #[cfg(test)]
@@ -182,5 +352,45 @@ mod tests {
     fn parse_address_should_reject_empty_string() {
         let err = parse_address("").unwrap_err();
         assert!(matches!(err, AppError::InvalidFirmwareAddress { .. }));
+    }
+
+    #[test]
+    fn analyze_firmware_usage_should_count_bin_bytes_from_base_address() {
+        let path = write_temp_file("usage.bin", &[1, 2, 3, 4, 5]);
+        let input = FirmwareInput {
+            path,
+            format: None,
+            base_address: Some(0x0800_0000),
+        };
+
+        let usage = analyze_firmware_usage(&input).unwrap();
+
+        assert_eq!(usage.used_bytes, 5);
+        assert_eq!(usage.start_address, Some(0x0800_0000));
+        assert_eq!(usage.end_address, Some(0x0800_0005));
+    }
+
+    #[test]
+    fn analyze_firmware_usage_should_merge_hex_data_ranges() {
+        let hex = b":020000040800F2\n:0400000001020304F2\n:0400040005060708DE\n:00000001FF\n";
+        let path = write_temp_file("usage.hex", hex);
+        let input = FirmwareInput {
+            path,
+            format: None,
+            base_address: None,
+        };
+
+        let usage = analyze_firmware_usage(&input).unwrap();
+
+        assert_eq!(usage.used_bytes, 8);
+        assert_eq!(usage.segments.len(), 1);
+        assert_eq!(usage.start_address, Some(0x0800_0000));
+        assert_eq!(usage.end_address, Some(0x0800_0008));
+    }
+
+    fn write_temp_file(name: &str, data: &[u8]) -> String {
+        let path = std::env::temp_dir().join(format!("flashdesk-{}-{name}", std::process::id()));
+        std::fs::write(&path, data).expect("test fixture should be written");
+        path.display().to_string()
     }
 }

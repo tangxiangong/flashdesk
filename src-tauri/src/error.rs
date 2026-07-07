@@ -1,3 +1,4 @@
+use crate::models::TargetCandidate;
 use serde::Serialize;
 use std::path::Path;
 
@@ -40,6 +41,9 @@ pub struct ErrorResponse {
     pub message: String,
     /// Frontend-safe diagnostic detail. Raw probe-rs logs and filesystem internals belong in job logs, not here.
     pub detail: Option<String>,
+    /// 自动识别失败时按当前硬件信息缩小出的候选目标。
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub target_candidates: Vec<TargetCandidate>,
     /// 用户可见的恢复建议。
     pub recovery: String,
 }
@@ -52,7 +56,10 @@ pub enum AppError {
     ProbeNotFound,
     /// 目标芯片识别失败。
     #[error("无法识别目标芯片")]
-    TargetIdentifyFailed { detail: String },
+    TargetIdentifyFailed {
+        detail: String,
+        candidates: Vec<TargetCandidate>,
+    },
     /// 固件格式不受支持。
     #[error("不支持的固件格式")]
     UnsupportedFirmwareFormat { path: String },
@@ -87,60 +94,70 @@ impl AppError {
                 code: ErrorCode::ProbeNotFound,
                 message: self.to_string(),
                 detail: None,
+                target_candidates: Vec::new(),
                 recovery: "接好烧录器后重新扫描。".to_string(),
             },
-            Self::TargetIdentifyFailed { detail } => ErrorResponse {
+            Self::TargetIdentifyFailed { detail, candidates } => ErrorResponse {
                 code: ErrorCode::TargetIdentifyFailed,
                 message: self.to_string(),
                 detail: Some(detail.clone()),
-                recovery: "尝试降低 SWD/JTAG 速度，或在芯片搜索中手动选择目标。".to_string(),
+                target_candidates: candidates.clone(),
+                recovery: "从缩小后的候选目标中选择一个后重试连接。".to_string(),
             },
             Self::UnsupportedFirmwareFormat { path } => ErrorResponse {
                 code: ErrorCode::UnsupportedFirmwareFormat,
                 message: self.to_string(),
                 detail: Some(format!("文件名：{}", display_file_name(path))),
+                target_candidates: Vec::new(),
                 recovery: "选择 .elf、.hex 或 .bin 文件。".to_string(),
             },
             Self::MissingBinBaseAddress => ErrorResponse {
                 code: ErrorCode::MissingBinBaseAddress,
                 message: self.to_string(),
                 detail: None,
+                target_candidates: Vec::new(),
                 recovery: "为 BIN 文件填写十六进制基地址，例如 0x08000000。".to_string(),
             },
             Self::InvalidFirmwareAddress { detail } => ErrorResponse {
                 code: ErrorCode::InvalidFirmwareAddress,
                 message: self.to_string(),
                 detail: Some(detail.clone()),
+                target_candidates: Vec::new(),
                 recovery: "检查地址格式、对齐和目标芯片 Flash 映射。".to_string(),
             },
             Self::ProbeRsFailure { detail } => ErrorResponse {
                 code: ErrorCode::ProbeRsFailure,
                 message: self.to_string(),
                 detail: Some(detail.clone()),
+                target_candidates: Vec::new(),
                 recovery: "确认芯片连接、接口、速度和访问地址后重试。".to_string(),
             },
             Self::IoFailure(err) => ErrorResponse {
                 code: ErrorCode::IoFailure,
                 message: self.to_string(),
                 detail: Some(format!("文件系统错误：{}", err.kind())),
+                target_candidates: Vec::new(),
                 recovery: "确认文件存在且当前用户有读写权限。".to_string(),
             },
             Self::InvalidUserInput { detail } => ErrorResponse {
                 code: ErrorCode::InvalidUserInput,
                 message: self.to_string(),
                 detail: Some(detail.clone()),
+                target_candidates: Vec::new(),
                 recovery: "按字段提示修正输入后重试。".to_string(),
             },
             Self::StorageFailure { .. } => ErrorResponse {
                 code: ErrorCode::StorageFailure,
                 message: self.to_string(),
                 detail: Some("本地存储操作失败，完整信息见任务日志".to_string()),
+                target_candidates: Vec::new(),
                 recovery: "检查应用数据目录权限，或删除损坏的本地配置文件。".to_string(),
             },
             Self::JobAlreadyRunning => ErrorResponse {
                 code: ErrorCode::JobAlreadyRunning,
                 message: self.to_string(),
                 detail: None,
+                target_candidates: Vec::new(),
                 recovery: "等待当前任务结束，或取消后再启动新任务。".to_string(),
             },
         }

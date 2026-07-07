@@ -26,6 +26,36 @@ pub struct FirmwareInput {
     pub base_address: Option<u64>,
 }
 
+/// 固件文件中会被写入 Flash 的地址段。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FirmwareUsageSegment {
+    /// 起始写入地址。
+    pub start: u64,
+    /// 结束地址，开区间。
+    pub end: u64,
+    /// 该连续地址段的字节数。
+    pub size: u64,
+}
+
+/// 固件 Flash 占用分析结果。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FirmwareUsage {
+    /// 解析采用的固件格式。
+    pub format: FirmwareFormat,
+    /// 去重合并后的实际写入字节数。
+    pub used_bytes: u64,
+    /// 从最小写入地址到最大写入地址的覆盖跨度，包含空洞。
+    pub span_bytes: u64,
+    /// 最小写入地址。
+    pub start_address: Option<u64>,
+    /// 最大写入地址，开区间。
+    pub end_address: Option<u64>,
+    /// 合并后的连续写入地址段。
+    pub segments: Vec<FirmwareUsageSegment>,
+}
+
 /// 可用调试探针的前端摘要。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -130,6 +160,16 @@ pub struct ConnectionInfo {
     pub speed_khz: Option<u32>,
     /// 是否使用 connect-under-reset。
     pub connect_under_reset: bool,
+}
+
+/// 自动识别失败时，后端按硬件可读信息缩小出的目标候选。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TargetCandidate {
+    /// probe-rs 可接收的目标名称。
+    pub name: String,
+    /// 候选所属芯片族。
+    pub family: String,
 }
 
 /// 前端提交的一次内存读取请求。
