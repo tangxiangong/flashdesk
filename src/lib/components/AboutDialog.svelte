@@ -4,6 +4,7 @@
   import appIcon from "$lib/assets/app-icon.png";
   import infoIcon from "$lib/assets/icons/info.svg?url";
   import xIcon from "$lib/assets/icons/x.svg?url";
+  import { openUrl } from "@tauri-apps/plugin-opener";
 
   /** 关于窗口 props。 */
   interface Props {
@@ -14,6 +15,7 @@
   let { open = $bindable(false) }: Props = $props();
 
   const appDescription = "用于固件烧录流程的桌面工具。";
+  const repositoryUrl = "https://github.com/tangxiangong/flashdesk";
 
   const aboutItems = [
     {
@@ -29,6 +31,11 @@
       value: "tangxiangong <tangxiangong@gmail.com>",
     },
     {
+      label: "GitHub",
+      value: "tangxiangong/flashdesk",
+      href: repositoryUrl,
+    },
+    {
       label: "License",
       value: appPackage.license,
     },
@@ -36,6 +43,11 @@
 
   function close() {
     open = false;
+  }
+
+  async function openRepository(event: MouseEvent, href: string) {
+    event.preventDefault();
+    await openUrl(href);
   }
 
   function onWindowKeydown(event: KeyboardEvent) {
@@ -97,7 +109,20 @@
           {#each aboutItems as item}
             <div>
               <dt>{item.label}</dt>
-              <dd>{item.value}</dd>
+              <dd>
+                {#if item.href}
+                  <a
+                    href={item.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    onclick={(event) => void openRepository(event, item.href)}
+                  >
+                    {item.value}
+                  </a>
+                {:else}
+                  {item.value}
+                {/if}
+              </dd>
             </div>
           {/each}
         </dl>
@@ -251,6 +276,16 @@
     line-height: 1.45;
     min-width: 0;
     overflow-wrap: anywhere;
+  }
+
+  .about-list a {
+    color: var(--color-accent-strong);
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .about-list a:hover {
+    text-decoration: underline;
   }
 
   @media (max-width: 520px) {
