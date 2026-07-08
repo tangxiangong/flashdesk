@@ -6,10 +6,15 @@
   import ConnectionPanel from "$lib/features/target/ConnectionPanel.svelte";
   import FlashView from "$lib/features/flash/FlashView.svelte";
   import ToolsPanel from "$lib/features/tools/ToolsPanel.svelte";
+  import LogsView from "$lib/features/logs/LogsView.svelte";
   import { theme } from "$lib/state/theme.svelte";
   import { jobs } from "$lib/state/jobs.svelte";
 
-  const workspacePages = [{ label: "固件烧录" }, { label: "高级功能" }];
+  const workspacePages = [
+    { label: "固件烧录" },
+    { label: "高级功能" },
+    { label: "日志" },
+  ];
   const pageCount = workspacePages.length;
 
   let currentPage = $state(0);
@@ -75,6 +80,12 @@
           <ToolsPanel />
         </div>
       </section>
+
+      <section class="workspace-page" aria-label="日志">
+        <div class="workspace-page-inner">
+          <LogsView />
+        </div>
+      </section>
     </div>
 
     <nav class="page-indicator" aria-label="当前页面">
@@ -117,7 +128,7 @@
 
   .workspace {
     display: grid;
-    grid-template-rows: repeat(2, 100%);
+    grid-template-rows: repeat(3, 100%);
     width: 100%;
     height: 100%;
     transition: transform var(--duration-slow) var(--ease-out);

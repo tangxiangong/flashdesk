@@ -336,25 +336,3 @@ pub struct RecentFile {
     /// 最近使用时间。
     pub used_at: DateTime<Utc>,
 }
-
-/// 持久化的任务历史条目。
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HistoryEntry {
-    /// 历史条目标识。
-    pub id: Uuid,
-    /// 任务类型。
-    pub kind: JobKind,
-    /// 目标芯片摘要。
-    pub target: Option<String>,
-    /// 固件文件摘要。
-    pub firmware: Option<String>,
-    /// 任务是否成功。
-    pub success: bool,
-    /// 前端可展示的结果摘要。
-    pub summary: String,
-    /// 任务日志路径。
-    pub log_path: String,
-    /// 历史记录时间。
-    pub at: DateTime<Utc>,
-}

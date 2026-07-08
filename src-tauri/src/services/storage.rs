@@ -1,10 +1,9 @@
 use crate::{
     error::{AppError, Result},
-    models::{HistoryEntry, Profile, RecentFile},
+    models::{Profile, RecentFile},
 };
 use std::{
-    fs::{self, OpenOptions},
-    io::Write,
+    fs,
     path::{Path, PathBuf},
 };
 
@@ -29,22 +28,11 @@ impl StoragePaths {
     pub fn recent_files(&self) -> PathBuf {
         self.root.join("recent-files.json")
     }
-
-    /// 历史记录 JSONL 文件路径。
-    pub fn history(&self) -> PathBuf {
-        self.root.join("history.jsonl")
-    }
-
-    /// 任务日志目录路径。
-    pub fn logs_dir(&self) -> PathBuf {
-        self.root.join("logs")
-    }
 }
 
-/// 确保存储根目录和日志目录存在。
+/// 确保存储根目录存在。
 pub fn ensure_storage(paths: &StoragePaths) -> Result<()> {
     fs::create_dir_all(&paths.root).map_err(|err| storage_io_error("create storage root", err))?;
-    fs::create_dir_all(paths.logs_dir()).map_err(|err| storage_io_error("create logs dir", err))?;
     Ok(())
 }
 
@@ -66,30 +54,6 @@ pub fn load_recent_files(paths: &StoragePaths) -> Result<Vec<RecentFile>> {
 /// 覆盖写入最近使用的固件文件列表。
 pub fn save_recent_files(paths: &StoragePaths, recent_files: &[RecentFile]) -> Result<()> {
     write_json_pretty(&paths.recent_files(), recent_files)
-}
-
-/// 追加一条任务历史记录。
-pub fn append_history(paths: &StoragePaths, entry: &HistoryEntry) -> Result<()> {
-    ensure_storage(paths)?;
-    let serialized = serde_json::to_string(entry).map_err(|err| AppError::StorageFailure {
-        detail: err.to_string(),
-    })?;
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(paths.history())
-        .map_err(|err| storage_io_error("open history file", err))?;
-    writeln!(file, "{serialized}").map_err(|err| storage_io_error("write history entry", err))?;
-    Ok(())
-}
-
-/// 写入任务日志并返回日志文件路径。
-pub fn write_job_log(paths: &StoragePaths, job_id: &str, content: &str) -> Result<PathBuf> {
-    ensure_storage(paths)?;
-    let filename = sanitize_filename::sanitize(format!("{job_id}.log"));
-    let path = paths.logs_dir().join(filename);
-    fs::write(&path, content).map_err(|err| storage_io_error("write job log", err))?;
-    Ok(path)
 }
 
 fn read_json_array<T>(path: &Path) -> Result<Vec<T>>
@@ -134,7 +98,7 @@ fn storage_io_error(operation: &str, err: std::io::Error) -> AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{FirmwareFormat, FlashOptions, JobKind, TargetSelection, WireProtocol};
+    use crate::models::{FirmwareFormat, FlashOptions, TargetSelection, WireProtocol};
     use chrono::Utc;
     use std::fs;
     use uuid::Uuid;
@@ -178,26 +142,6 @@ mod tests {
     }
 
     #[test]
-    fn append_history_should_write_one_json_line() {
-        let paths = paths();
-        let entry = HistoryEntry {
-            id: Uuid::new_v4(),
-            kind: JobKind::Flash,
-            target: Some("STM32F103C8".to_string()),
-            firmware: Some("/tmp/app.elf".to_string()),
-            success: true,
-            summary: "烧录成功".to_string(),
-            log_path: "logs/job.log".to_string(),
-            at: Utc::now(),
-        };
-        append_history(&paths, &entry).unwrap();
-        let content = fs::read_to_string(paths.history()).unwrap();
-        assert_eq!(content.lines().count(), 1);
-        let actual: HistoryEntry = serde_json::from_str(content.lines().next().unwrap()).unwrap();
-        assert_eq!(actual.summary, "烧录成功");
-    }
-
-    #[test]
     fn load_recent_files_should_return_empty_when_file_missing() {
         let paths = paths();
         let actual = load_recent_files(&paths).unwrap();
@@ -235,22 +179,5 @@ mod tests {
         fs::write(&paths.root, "not a directory").unwrap();
         let err = ensure_storage(&paths).unwrap_err();
         assert!(matches!(err, AppError::StorageFailure { .. }));
-    }
-
-    #[test]
-    fn write_job_log_should_sanitize_filename_and_write_content() {
-        let paths = paths();
-        let logs_dir = paths.logs_dir();
-        let log_path = write_job_log(&paths, "../job:1", "hello log").unwrap();
-        let file_name = log_path
-            .file_name()
-            .and_then(|value| value.to_str())
-            .unwrap();
-        assert_eq!(log_path.parent(), Some(logs_dir.as_path()));
-        assert_ne!(file_name, "../job:1.log");
-        assert!(!file_name.contains('/'));
-        assert!(!file_name.contains('\\'));
-        assert!(file_name.ends_with(".log"));
-        assert_eq!(fs::read_to_string(log_path).unwrap(), "hello log");
     }
 }

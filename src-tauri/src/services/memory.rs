@@ -1,5 +1,5 @@
 use crate::{
-    error::{AppError, Result},
+    error::{AppError, Result, describe_error_chain},
     models::{
         EraseRequest, JobId, JobKind, JobStage, MemoryReadResult, MemoryRequest, TargetSelection,
         WireProtocol,
@@ -115,7 +115,7 @@ fn open_session(target: &TargetSelection, probe_identifier: Option<&str>) -> Res
             .try_into()
             .map_err(
                 |err: DebugProbeSelectorParseError| AppError::ProbeRsFailure {
-                    detail: err.to_string(),
+                    detail: describe_error_chain(&err),
                 },
             )?;
 
@@ -173,10 +173,6 @@ fn encode_hex(bytes: &[u8]) -> String {
 }
 
 fn failed_message(error: &AppError) -> String {
-    if matches!(error, AppError::ProbeRsFailure { .. }) {
-        return "probe-rs 操作失败：probe-rs 返回了错误，完整信息见任务日志".to_string();
-    }
-
     let response = error.to_response();
     match response.detail {
         Some(detail) => format!("{}：{}", response.message, detail),
@@ -184,9 +180,9 @@ fn failed_message(error: &AppError) -> String {
     }
 }
 
-fn probe_rs_error(error: impl std::fmt::Display) -> AppError {
+fn probe_rs_error(error: impl std::error::Error + 'static) -> AppError {
     AppError::ProbeRsFailure {
-        detail: error.to_string(),
+        detail: describe_error_chain(&error),
     }
 }
 

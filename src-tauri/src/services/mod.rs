@@ -8,7 +8,7 @@ pub mod jobs;
 pub mod memory;
 /// 调试探针枚举和目标连接。
 pub mod probe;
-/// 用户配置、最近文件、历史记录和任务日志存储。
+/// 用户配置和最近文件存储。
 pub mod storage;
 /// 芯片搜索和目标内存布局查询。
 pub mod target;

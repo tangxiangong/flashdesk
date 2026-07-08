@@ -164,6 +164,20 @@ impl AppError {
     }
 }
 
+/// 展开错误来源链，得到可直接在当前进程内展示的完整错误描述。
+///
+/// probe-rs 的顶层错误类型（如 `FileDownloadError::Flash`）常常只是一层包装，
+/// 真正有诊断价值的原因在 `source()` 链的更深处，仅调用 `to_string()` 会丢失这部分信息。
+pub fn describe_error_chain(error: &(dyn std::error::Error + 'static)) -> String {
+    let mut parts = vec![error.to_string()];
+    let mut current = error;
+    while let Some(source) = current.source() {
+        parts.push(source.to_string());
+        current = source;
+    }
+    parts.join("：")
+}
+
 fn display_file_name(path: &str) -> String {
     Path::new(path)
         .file_name()

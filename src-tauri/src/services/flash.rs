@@ -1,5 +1,5 @@
 use crate::{
-    error::{AppError, Result},
+    error::{AppError, Result, describe_error_chain},
     models::{FirmwareFormat, FlashRequest, JobId, JobKind, JobStage, WireProtocol},
     services::firmware::validate_firmware,
     services::jobs::{emit_job_event, new_job_id},
@@ -27,10 +27,6 @@ pub fn validate_flash_request(request: &FlashRequest) -> Result<FirmwareFormat> 
 }
 
 fn failed_message(error: &AppError) -> String {
-    if matches!(error, AppError::ProbeRsFailure { .. }) {
-        return "probe-rs 操作失败：probe-rs 返回了错误，完整信息见任务日志".to_string();
-    }
-
     let response = error.to_response();
     match response.detail {
         Some(detail) => format!("{}：{}", response.message, detail),
@@ -139,14 +135,14 @@ fn run_probe_rs_flash(
             .try_into()
             .map_err(
                 |err: DebugProbeSelectorParseError| AppError::ProbeRsFailure {
-                    detail: err.to_string(),
+                    detail: describe_error_chain(&err),
                 },
             )?;
 
     let mut probe = Lister::new()
         .open(selector)
         .map_err(|err| AppError::ProbeRsFailure {
-            detail: err.to_string(),
+            detail: describe_error_chain(&err),
         })?;
 
     let protocol = match request.target.protocol {
@@ -156,14 +152,14 @@ fn run_probe_rs_flash(
     probe
         .select_protocol(protocol)
         .map_err(|err| AppError::ProbeRsFailure {
-            detail: err.to_string(),
+            detail: describe_error_chain(&err),
         })?;
 
     if let Some(speed_khz) = request.target.speed_khz {
         probe
             .set_speed(speed_khz)
             .map_err(|err| AppError::ProbeRsFailure {
-                detail: err.to_string(),
+                detail: describe_error_chain(&err),
             })?;
     }
 
@@ -173,7 +169,7 @@ fn run_probe_rs_flash(
         probe.attach(target_selector, Permissions::default())
     }
     .map_err(|err| AppError::ProbeRsFailure {
-        detail: err.to_string(),
+        detail: describe_error_chain(&err),
     })?;
 
     let format = probe_rs_format(firmware_format, request.firmware.base_address)?;
@@ -199,7 +195,7 @@ fn run_probe_rs_flash(
         options,
     )
     .map_err(|err| AppError::ProbeRsFailure {
-        detail: err.to_string(),
+        detail: describe_error_chain(&err),
     })?;
 
     if request.options.reset_after {
@@ -216,7 +212,7 @@ fn run_probe_rs_flash(
             .core(0)
             .and_then(|mut core| core.reset())
             .map_err(|err| AppError::ProbeRsFailure {
-                detail: err.to_string(),
+                detail: describe_error_chain(&err),
             })?;
     }
 
@@ -343,14 +339,11 @@ mod tests {
     }
 
     #[test]
-    fn failed_message_should_not_leak_probe_rs_raw_detail() {
+    fn failed_message_should_include_probe_rs_raw_detail() {
         let message = failed_message(&AppError::ProbeRsFailure {
             detail: "raw probe-rs stack detail".to_string(),
         });
 
-        assert_eq!(
-            message,
-            "probe-rs 操作失败：probe-rs 返回了错误，完整信息见任务日志"
-        );
+        assert_eq!(message, "probe-rs 操作失败：raw probe-rs stack detail");
     }
 }
