@@ -50,7 +50,8 @@ jobs:
           # 拉取该 Release 对应 tag 的代码，确保构建的是发布点的版本。
           ref: ${{ github.event.release.tag_name }}
 
-      # Tauri v2 在 Linux 上需要 webkit2gtk 4.1 + 托盘/appindicator + rsvg + patchelf。
+      # Tauri v2 在 Linux 上需要 webkit2gtk 4.1 + 托盘/appindicator + rsvg + patchelf，
+      # AppImage 打包还会读取 xdg-open，因此显式安装 xdg-utils。
       # 在 x86_64 与 arm64 两种 Ubuntu runner 上都原生安装。
       - name: Install Linux build dependencies
         if: startsWith(matrix.platform, 'ubuntu')
@@ -60,7 +61,8 @@ jobs:
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
             librsvg2-dev \
-            patchelf
+            patchelf \
+            xdg-utils
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
