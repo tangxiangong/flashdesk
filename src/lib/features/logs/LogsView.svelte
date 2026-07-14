@@ -1,15 +1,24 @@
 <script lang="ts">
   import { jobs, stageLabel, stageTone } from "$lib/state/jobs.svelte";
+  import {
+    activityLog,
+    type ActivityEvent,
+    type ActivityKind,
+  } from "$lib/state/activity-log.svelte";
   import Segmented from "$lib/components/Segmented.svelte";
   import Icon from "$lib/components/Icon.svelte";
   import xIcon from "$lib/assets/icons/x.svg?url";
-  import type { JobEvent, JobKind } from "$lib/api/tauri";
 
-  type KindFilter = "all" | JobKind;
+  type KindFilter = "all" | ActivityKind;
 
-  const KIND_LABEL: Record<JobKind, string> = {
+  const KIND_LABEL: Record<ActivityKind, string> = {
+    connect: "连接",
+    probe: "探针",
+    target: "目标",
     flash: "烧录",
     erase: "擦除",
+    memory: "内存",
+    storage: "配置",
   };
 
   const BADGE_CLASS: Record<string, string> = {
@@ -26,11 +35,13 @@
   let copyFeedback = $state(false);
 
   let visibleEvents = $derived(
-    jobs.events.filter((event) => {
-      if (Date.parse(event.at) <= clearedAt) return false;
-      if (filter !== "all" && event.kind !== filter) return false;
-      return true;
-    }),
+    [...jobs.events, ...activityLog.events]
+      .sort((left, right) => Date.parse(left.at) - Date.parse(right.at))
+      .filter((event) => {
+        if (Date.parse(event.at) <= clearedAt) return false;
+        if (filter !== "all" && event.kind !== filter) return false;
+        return true;
+      }),
   );
 
   $effect(() => {
@@ -66,7 +77,7 @@
     return `${time}.${String(date.getMilliseconds()).padStart(3, "0")}`;
   }
 
-  function formatLine(event: JobEvent): string {
+  function formatLine(event: ActivityEvent): string {
     const percent =
       event.progress != null ? ` (${Math.round(event.progress * 100)}%)` : "";
     return `[${formatTime(event.at)}] ${KIND_LABEL[event.kind]}·${stageLabel(event.stage)}${percent} — ${event.message}`;
@@ -99,6 +110,7 @@
         value={filter}
         options={[
           { value: "all", label: "全部" },
+          { value: "connect", label: "连接" },
           { value: "flash", label: "烧录" },
           { value: "erase", label: "擦除" },
         ]}
@@ -135,7 +147,7 @@
     >
       {#if visibleEvents.length === 0}
         <p class="logs-empty">
-          暂无任务事件。开始一次烧录或擦除后，进度会实时显示在这里。
+          暂无运行事件。应用操作的进度、结果与错误会实时显示在这里。
         </p>
       {:else}
         {#each visibleEvents as event, index (event.id + event.at + index)}

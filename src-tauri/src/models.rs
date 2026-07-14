@@ -146,6 +146,20 @@ pub struct ConnectRequest {
     pub target: TargetSelection,
 }
 
+/// 通过调试接口直接读取的目标硬件信息。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TargetInformation {
+    /// 设备类型，例如 STM32。
+    pub device_type: String,
+    /// 厂商调试模块中的设备 ID。
+    pub device_id: Option<u16>,
+    /// 厂商调试模块中的芯片修订 ID。
+    pub revision_id: Option<u16>,
+    /// 从 CPUID 识别出的 CPU 内核名称。
+    pub cpu: Option<String>,
+}
+
 /// 成功连接目标后的摘要信息。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -160,6 +174,8 @@ pub struct ConnectionInfo {
     pub speed_khz: Option<u32>,
     /// 是否使用 connect-under-reset。
     pub connect_under_reset: bool,
+    /// 从目标寄存器读取的硬件信息。
+    pub target_information: Option<TargetInformation>,
 }
 
 /// 自动识别失败时，后端按硬件可读信息缩小出的目标候选。

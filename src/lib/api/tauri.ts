@@ -1,5 +1,63 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import {
+  activityLog,
+  type ActivityKind,
+  type ActivityStage,
+} from "$lib/state/activity-log.svelte";
+
+interface CommandLogMeta {
+  kind: ActivityKind;
+  label: string;
+  pendingStage: ActivityStage;
+}
+
+const COMMAND_LOG_META: Record<string, CommandLogMeta> = {
+  list_probes: { kind: "probe", label: "扫描探针", pendingStage: "preparing" },
+  connect_target: {
+    kind: "connect",
+    label: "连接目标",
+    pendingStage: "connecting",
+  },
+  search_chips: {
+    kind: "target",
+    label: "搜索芯片",
+    pendingStage: "preparing",
+  },
+  target_memory_map: {
+    kind: "target",
+    label: "读取内存布局",
+    pendingStage: "preparing",
+  },
+  flash_firmware: {
+    kind: "flash",
+    label: "创建烧录任务",
+    pendingStage: "preparing",
+  },
+  firmware_usage: {
+    kind: "flash",
+    label: "分析固件占用",
+    pendingStage: "preparing",
+  },
+  read_memory: { kind: "memory", label: "读取内存", pendingStage: "preparing" },
+  erase_target: {
+    kind: "erase",
+    label: "创建擦除任务",
+    pendingStage: "preparing",
+  },
+  load_profiles: {
+    kind: "storage",
+    label: "加载配置",
+    pendingStage: "preparing",
+  },
+  save_profiles: {
+    kind: "storage",
+    label: "保存配置",
+    pendingStage: "preparing",
+  },
+};
+
+let commandSequence = 0;
 
 declare global {
   interface Window {
@@ -156,11 +214,25 @@ export interface TargetCandidate {
   family: string;
 }
 
+/** 通过调试接口直接读取的目标硬件信息。 */
+export interface TargetInformation {
+  /** 设备类型，例如 STM32。 */
+  deviceType: string;
+  /** 厂商调试模块中的设备 ID。 */
+  deviceId?: number | null;
+  /** 厂商调试模块中的芯片修订 ID。 */
+  revisionId?: number | null;
+  /** 从 CPUID 识别出的 CPU 内核名称。 */
+  cpu?: string | null;
+}
+
 interface AppErrorResponse {
+  code?: unknown;
   message?: unknown;
   detail?: unknown;
   recovery?: unknown;
   targetCandidates?: unknown;
+  targetInformation?: unknown;
 }
 
 /** 前端提交的一次连接探测请求。 */
@@ -183,6 +255,8 @@ export interface ConnectionInfo {
   speedKhz?: number | null;
   /** 是否使用 connect-under-reset。 */
   connectUnderReset: boolean;
+  /** 从目标寄存器读取的硬件信息。 */
+  targetInformation?: TargetInformation | null;
 }
 
 /** 目标芯片内存区域类型。 */
@@ -259,15 +333,64 @@ export function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && window.__TAURI_INTERNALS__ != null;
 }
 
-function invokeCommand<T>(
+async function invokeCommand<T>(
   command: string,
   args?: Record<string, unknown>,
 ): Promise<T> {
-  if (!isTauriRuntime()) {
-    return Promise.reject(new Error("当前页面不在 Tauri 运行环境中"));
+  const meta = COMMAND_LOG_META[command];
+  const operationId = `operation-${Date.now().toString(36)}-${commandSequence++}`;
+
+  if (meta) {
+    activityLog.operation(
+      operationId,
+      meta.kind,
+      meta.pendingStage,
+      `${meta.label}开始`,
+    );
   }
 
-  return invoke<T>(command, args);
+  if (!isTauriRuntime()) {
+    const error = new Error("当前页面不在 Tauri 运行环境中");
+    if (meta) {
+      activityLog.operation(
+        operationId,
+        meta.kind,
+        "failed",
+        `${meta.label}失败：${readableError(error)}`,
+      );
+    }
+    throw error;
+  }
+
+  try {
+    const result = await invoke<T>(command, args);
+    if (meta) {
+      activityLog.operation(
+        operationId,
+        meta.kind,
+        "completed",
+        `${meta.label}完成`,
+      );
+    }
+    return result;
+  } catch (error) {
+    if (meta) {
+      const needsTargetConfirmation =
+        command === "connect_target" &&
+        typeof error === "object" &&
+        error !== null &&
+        (error as AppErrorResponse).code === "target_identify_failed";
+      activityLog.operation(
+        operationId,
+        meta.kind,
+        needsTargetConfirmation ? "completed" : "failed",
+        needsTargetConfirmation
+          ? "自动识别已缩小到兼容型号，等待确认具体型号"
+          : `${meta.label}失败：${readableError(error)}`,
+      );
+    }
+    throw error;
+  }
 }
 
 /** 列出当前系统可见的调试探针。 */
@@ -363,6 +486,30 @@ export function targetCandidatesFromError(err: unknown): TargetCandidate[] {
       typeof (candidate as TargetCandidate).family === "string"
     );
   });
+}
+
+/** 从后端错误响应中提取已读取到的目标硬件信息。 */
+export function targetInformationFromError(
+  err: unknown,
+): TargetInformation | null {
+  if (!err || typeof err !== "object") return null;
+
+  const value = (err as AppErrorResponse).targetInformation;
+  if (!value || typeof value !== "object") return null;
+
+  const information = value as Record<string, unknown>;
+  if (typeof information.deviceType !== "string") return null;
+
+  return {
+    deviceType: information.deviceType,
+    deviceId:
+      typeof information.deviceId === "number" ? information.deviceId : null,
+    revisionId:
+      typeof information.revisionId === "number"
+        ? information.revisionId
+        : null,
+    cpu: typeof information.cpu === "string" ? information.cpu : null,
+  };
 }
 
 /** 从应用数据目录加载用户保存的烧录配置。 */

@@ -1,4 +1,4 @@
-use crate::models::TargetCandidate;
+use crate::models::{TargetCandidate, TargetInformation};
 use serde::Serialize;
 use std::path::Path;
 
@@ -44,6 +44,9 @@ pub struct ErrorResponse {
     /// 自动识别失败时按当前硬件信息缩小出的候选目标。
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub target_candidates: Vec<TargetCandidate>,
+    /// 已通过调试接口读取到的目标硬件信息。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_information: Option<TargetInformation>,
     /// 用户可见的恢复建议。
     pub recovery: String,
 }
@@ -59,6 +62,7 @@ pub enum AppError {
     TargetIdentifyFailed {
         detail: String,
         candidates: Vec<TargetCandidate>,
+        target_information: Option<TargetInformation>,
     },
     /// 固件格式不受支持。
     #[error("不支持的固件格式")]
@@ -95,13 +99,19 @@ impl AppError {
                 message: self.to_string(),
                 detail: None,
                 target_candidates: Vec::new(),
+                target_information: None,
                 recovery: "接好烧录器后重新扫描。".to_string(),
             },
-            Self::TargetIdentifyFailed { detail, candidates } => ErrorResponse {
+            Self::TargetIdentifyFailed {
+                detail,
+                candidates,
+                target_information,
+            } => ErrorResponse {
                 code: ErrorCode::TargetIdentifyFailed,
                 message: self.to_string(),
                 detail: Some(detail.clone()),
                 target_candidates: candidates.clone(),
+                target_information: target_information.clone(),
                 recovery: "从缩小后的候选目标中选择一个后重试连接。".to_string(),
             },
             Self::UnsupportedFirmwareFormat { path } => ErrorResponse {
@@ -109,6 +119,7 @@ impl AppError {
                 message: self.to_string(),
                 detail: Some(format!("文件名：{}", display_file_name(path))),
                 target_candidates: Vec::new(),
+                target_information: None,
                 recovery: "选择 .elf、.hex 或 .bin 文件。".to_string(),
             },
             Self::MissingBinBaseAddress => ErrorResponse {
@@ -116,6 +127,7 @@ impl AppError {
                 message: self.to_string(),
                 detail: None,
                 target_candidates: Vec::new(),
+                target_information: None,
                 recovery: "为 BIN 文件填写十六进制基地址，例如 0x08000000。".to_string(),
             },
             Self::InvalidFirmwareAddress { detail } => ErrorResponse {
@@ -123,6 +135,7 @@ impl AppError {
                 message: self.to_string(),
                 detail: Some(detail.clone()),
                 target_candidates: Vec::new(),
+                target_information: None,
                 recovery: "检查地址格式、对齐和目标芯片 Flash 映射。".to_string(),
             },
             Self::ProbeRsFailure { detail } => ErrorResponse {
@@ -130,6 +143,7 @@ impl AppError {
                 message: self.to_string(),
                 detail: Some(detail.clone()),
                 target_candidates: Vec::new(),
+                target_information: None,
                 recovery: "确认芯片连接、接口、速度和访问地址后重试。".to_string(),
             },
             Self::IoFailure(err) => ErrorResponse {
@@ -137,6 +151,7 @@ impl AppError {
                 message: self.to_string(),
                 detail: Some(format!("文件系统错误：{}", err.kind())),
                 target_candidates: Vec::new(),
+                target_information: None,
                 recovery: "确认文件存在且当前用户有读写权限。".to_string(),
             },
             Self::InvalidUserInput { detail } => ErrorResponse {
@@ -144,6 +159,7 @@ impl AppError {
                 message: self.to_string(),
                 detail: Some(detail.clone()),
                 target_candidates: Vec::new(),
+                target_information: None,
                 recovery: "按字段提示修正输入后重试。".to_string(),
             },
             Self::StorageFailure { .. } => ErrorResponse {
@@ -151,6 +167,7 @@ impl AppError {
                 message: self.to_string(),
                 detail: Some("本地存储操作失败，完整信息见任务日志".to_string()),
                 target_candidates: Vec::new(),
+                target_information: None,
                 recovery: "检查应用数据目录权限，或删除损坏的本地配置文件。".to_string(),
             },
             Self::JobAlreadyRunning => ErrorResponse {
@@ -158,6 +175,7 @@ impl AppError {
                 message: self.to_string(),
                 detail: None,
                 target_candidates: Vec::new(),
+                target_information: None,
                 recovery: "等待当前任务结束，或取消后再启动新任务。".to_string(),
             },
         }

@@ -1,12 +1,16 @@
 use crate::{
     error::{AppError, Result},
-    models::{ConnectRequest, ConnectionInfo, ProbeSummary, TargetCandidate, WireProtocol},
+    models::{
+        ConnectRequest, ConnectionInfo, ProbeSummary, TargetCandidate, TargetInformation,
+        WireProtocol,
+    },
     services::target::arm_target_candidates,
 };
 use probe_rs::{
-    Permissions,
+    MemoryInterface, Permissions,
     architecture::arm::{
-        ArmChipInfo, dp::DpAddress, memory::romtable::Component, sequences::DefaultArmSequence,
+        ArmChipInfo, dp::DpAddress, memory::ArmMemoryInterface, memory::romtable::Component,
+        sequences::DefaultArmSequence,
     },
     config::{Registry, RegistryError},
     probe::{
@@ -14,6 +18,20 @@ use probe_rs::{
         WireProtocol as ProbeWireProtocol, list::Lister,
     },
 };
+
+const CPUID_ADDRESS: u64 = 0xE000_ED00;
+const STM32_DBGMCU_IDCODE_ADDRESSES: [u64; 5] = [
+    0xE004_2000,
+    0x4001_5800,
+    0xE004_4000,
+    0x5C00_1000,
+    0xE00E_1000,
+];
+
+struct TargetIdentification {
+    candidates: Vec<TargetCandidate>,
+    target_information: Option<TargetInformation>,
+}
 
 /// 列出当前系统可见的调试探针。
 pub fn list_probes() -> Result<Vec<ProbeSummary>> {
@@ -70,20 +88,35 @@ pub fn connect_target(request: ConnectRequest) -> Result<ConnectionInfo> {
     let session = match session_result {
         Ok(session) => session,
         Err(error) if target_selector.is_none() && is_chip_autodetect_failure(&error) => {
-            let candidates = identify_target_candidates(
+            let identification = identify_target_candidates(
                 &probe_identifier,
                 protocol,
                 request.target.speed_khz,
                 request.target.connect_under_reset,
             );
             return Err(AppError::TargetIdentifyFailed {
-                detail: target_identify_detail(candidates.as_ref(), &error),
-                candidates: candidates.unwrap_or_default(),
+                detail: target_identify_detail(identification.as_ref(), &error),
+                candidates: identification
+                    .as_ref()
+                    .map(|value| value.candidates.clone())
+                    .unwrap_or_default(),
+                target_information: identification
+                    .ok()
+                    .and_then(|value| value.target_information),
             });
         }
         Err(error) => return Err(probe_rs_error(error)),
     };
+    let mut session = session;
     let chip = session.target().name.clone();
+    let target_information = if chip.starts_with("STM32") {
+        session
+            .core(0)
+            .ok()
+            .map(|mut core| target_information_from_core(&mut core, "STM32"))
+    } else {
+        None
+    };
 
     Ok(ConnectionInfo {
         probe: probe_identifier,
@@ -91,6 +124,7 @@ pub fn connect_target(request: ConnectRequest) -> Result<ConnectionInfo> {
         protocol: request.target.protocol,
         speed_khz: request.target.speed_khz,
         connect_under_reset: request.target.connect_under_reset,
+        target_information,
     })
 }
 
@@ -99,7 +133,7 @@ fn identify_target_candidates(
     protocol: ProbeWireProtocol,
     speed_khz: Option<u32>,
     connect_under_reset: bool,
-) -> std::result::Result<Vec<TargetCandidate>, String> {
+) -> std::result::Result<TargetIdentification, String> {
     let selector: DebugProbeSelector = probe_identifier
         .try_into()
         .map_err(|err: DebugProbeSelectorParseError| err.to_string())?;
@@ -124,17 +158,25 @@ fn identify_target_candidates(
             .map_err(|err| err.to_string())?;
     }
 
-    let Some(chip_info) = read_arm_chip_info(probe).map_err(|err| err.to_string())? else {
-        return Ok(Vec::new());
+    let Some((chip_info, target_information)) =
+        read_arm_chip_info(probe).map_err(|err| err.to_string())?
+    else {
+        return Ok(TargetIdentification {
+            candidates: Vec::new(),
+            target_information: None,
+        });
     };
 
     let registry = Registry::from_builtin_families();
-    Ok(arm_target_candidates(&registry, chip_info))
+    Ok(TargetIdentification {
+        candidates: arm_target_candidates(&registry, chip_info),
+        target_information: Some(target_information),
+    })
 }
 
 fn read_arm_chip_info(
     probe: probe_rs::probe::Probe,
-) -> std::result::Result<Option<ArmChipInfo>, probe_rs::Error> {
+) -> std::result::Result<Option<(ArmChipInfo, TargetInformation)>, probe_rs::Error> {
     if !probe.has_arm_debug_interface() {
         return Ok(None);
     }
@@ -156,10 +198,20 @@ fn read_arm_chip_info(
             if let Component::Class1RomTable(component_id, _) = component
                 && let Some(jep106) = component_id.peripheral_id().jep106()
             {
-                found_chip_info = Some(ArmChipInfo {
+                let manufacturer = jep106.get().unwrap_or("ARM");
+                let chip_info = ArmChipInfo {
                     manufacturer: jep106,
                     part: component_id.peripheral_id().part(),
-                });
+                };
+                let device_type = if manufacturer == "STMicroelectronics" {
+                    "STM32"
+                } else {
+                    manufacturer
+                };
+                found_chip_info = Some((
+                    chip_info,
+                    target_information_from_arm_memory(&mut *memory, device_type),
+                ));
                 break;
             }
         }
@@ -167,6 +219,71 @@ fn read_arm_chip_info(
 
     let _probe = interface.close();
     Ok(found_chip_info)
+}
+
+fn target_information_from_arm_memory(
+    memory: &mut dyn ArmMemoryInterface,
+    device_type: &str,
+) -> TargetInformation {
+    let cpuid = memory.read_word_32(CPUID_ADDRESS).ok();
+    let idcode = (device_type == "STM32")
+        .then(|| read_stm32_idcode_arm(memory))
+        .flatten();
+
+    TargetInformation {
+        device_type: device_type.to_string(),
+        device_id: idcode.map(|value| (value & 0x0fff) as u16),
+        revision_id: idcode.map(|value| (value >> 16) as u16),
+        cpu: cpuid.and_then(cpu_name_from_cpuid).map(str::to_string),
+    }
+}
+
+fn target_information_from_core(
+    core: &mut probe_rs::Core<'_>,
+    device_type: &str,
+) -> TargetInformation {
+    let cpuid = core.read_word_32(CPUID_ADDRESS).ok();
+    let idcode = (device_type == "STM32")
+        .then(|| read_stm32_idcode_core(core))
+        .flatten();
+
+    TargetInformation {
+        device_type: device_type.to_string(),
+        device_id: idcode.map(|value| (value & 0x0fff) as u16),
+        revision_id: idcode.map(|value| (value >> 16) as u16),
+        cpu: cpuid.and_then(cpu_name_from_cpuid).map(str::to_string),
+    }
+}
+
+fn read_stm32_idcode_arm(memory: &mut dyn ArmMemoryInterface) -> Option<u32> {
+    STM32_DBGMCU_IDCODE_ADDRESSES.iter().find_map(|address| {
+        let value = memory.read_word_32(*address).ok()?;
+        let device_id = value & 0x0fff;
+        (value != 0 && value != u32::MAX && device_id != 0 && device_id != 0x0fff).then_some(value)
+    })
+}
+
+fn read_stm32_idcode_core(core: &mut probe_rs::Core<'_>) -> Option<u32> {
+    STM32_DBGMCU_IDCODE_ADDRESSES.iter().find_map(|address| {
+        let value = core.read_word_32(*address).ok()?;
+        let device_id = value & 0x0fff;
+        (value != 0 && value != u32::MAX && device_id != 0 && device_id != 0x0fff).then_some(value)
+    })
+}
+
+fn cpu_name_from_cpuid(cpuid: u32) -> Option<&'static str> {
+    match (cpuid >> 4) & 0x0fff {
+        0xC20 => Some("Cortex-M0"),
+        0xC60 => Some("Cortex-M0+"),
+        0xC23 => Some("Cortex-M3"),
+        0xC24 => Some("Cortex-M4"),
+        0xC27 => Some("Cortex-M7"),
+        0xD20 => Some("Cortex-M23"),
+        0xD21 => Some("Cortex-M33"),
+        0xD22 => Some("Cortex-M55"),
+        0xD23 => Some("Cortex-M85"),
+        _ => None,
+    }
 }
 
 fn is_chip_autodetect_failure(error: &probe_rs::Error) -> bool {
@@ -177,14 +294,14 @@ fn is_chip_autodetect_failure(error: &probe_rs::Error) -> bool {
 }
 
 fn target_identify_detail(
-    candidates: std::result::Result<&Vec<TargetCandidate>, &String>,
+    identification: std::result::Result<&TargetIdentification, &String>,
     error: &probe_rs::Error,
 ) -> String {
-    match candidates {
-        Ok(candidates) if !candidates.is_empty() => {
+    match identification {
+        Ok(identification) if !identification.candidates.is_empty() => {
             format!(
                 "自动识别未能唯一确定目标，已缩小到 {} 个候选",
-                candidates.len()
+                identification.candidates.len()
             )
         }
         Ok(_) => format!("自动识别未能确定目标，且当前探测信息没有匹配候选：{error}"),
@@ -284,5 +401,19 @@ mod tests {
             .expect_err("multiple probes require explicit selection");
 
         assert!(matches!(err, AppError::InvalidUserInput { .. }));
+    }
+
+    #[test]
+    fn cpu_name_from_cpuid_should_identify_cortex_m3() {
+        let name = cpu_name_from_cpuid(0x411F_C231);
+
+        assert_eq!(name, Some("Cortex-M3"));
+    }
+
+    #[test]
+    fn cpu_name_from_cpuid_should_ignore_unknown_part_number() {
+        let name = cpu_name_from_cpuid(0x410F_FFF0);
+
+        assert_eq!(name, None);
     }
 }

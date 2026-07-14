@@ -4,9 +4,11 @@ import {
   readableError,
   searchChips,
   targetCandidatesFromError,
+  targetInformationFromError,
   type ConnectionInfo,
   type ProbeSummary,
   type TargetCandidate,
+  type TargetInformation,
   type WireProtocol,
 } from "$lib/api/tauri";
 
@@ -59,6 +61,8 @@ class TargetState {
   chipSearching = $state(false);
   /** 自动识别失败时后端缩小出的目标候选。 */
   targetCandidates = $state<TargetCandidate[]>([]);
+  /** 通过调试寄存器自动读取到的目标硬件信息。 */
+  targetInformation = $state<TargetInformation | null>(null);
   /** 候选弹窗触发序号，用于前端只在新候选出现时自动打开一次。 */
   candidatePromptSeq = $state(0);
 
@@ -105,40 +109,49 @@ class TargetState {
     const requestedTarget = this.selection();
 
     try {
-      this.connection = await connectTarget({
+      const connection = await connectTarget({
         probe: this.probe,
         target: requestedTarget,
       });
-      this.probe = this.connection.probe;
-      this.detectedChip = this.connection.chip;
-      this.connectedSelectionKey = selectionKey(
-        this.connection.probe,
-        requestedTarget.chip ?? "",
-        this.connection.protocol,
-        this.connection.speedKhz ?? null,
-        this.connection.connectUnderReset,
-      );
-      this.chipResults = [];
-      this.chipQuery = "";
-      this.targetCandidates = [];
+      this.applyConnection(connection, requestedTarget.chip ?? "");
     } catch (err) {
       const candidates = targetCandidatesFromError(err);
+      const targetInformation = targetInformationFromError(err);
       this.connection = null;
       this.detectedChip = "";
       this.connectedSelectionKey = "";
       this.targetCandidates = candidates;
+      this.targetInformation = targetInformation;
       if (candidates.length > 0) {
         this.candidatePromptSeq += 1;
         this.chipResults = candidates.map((candidate) => candidate.name);
         this.chipQuery = "";
       }
-      this.connectError =
-        candidates.length > 0
-          ? `${readableError(err)}，请选择候选目标`
-          : readableError(err);
+      this.connectError = candidates.length > 0 ? null : readableError(err);
     } finally {
       this.connecting = false;
     }
+  }
+
+  /** 接收成功连接，并保存可供同一探针下次消除型号歧义的结果。 */
+  private applyConnection(connection: ConnectionInfo, requestedChip: string) {
+    this.connection = connection;
+    this.probe = connection.probe;
+    this.detectedChip = connection.chip;
+    this.targetInformation = connection.targetInformation ?? null;
+    this.protocol = connection.protocol;
+    this.speedKhz = connection.speedKhz ?? this.speedKhz;
+    this.connectUnderReset = connection.connectUnderReset;
+    this.connectedSelectionKey = selectionKey(
+      connection.probe,
+      requestedChip,
+      connection.protocol,
+      connection.speedKhz ?? null,
+      connection.connectUnderReset,
+    );
+    this.chipResults = [];
+    this.chipQuery = "";
+    this.targetCandidates = [];
   }
 
   /** 清空当前连接状态，但保留用户的探针和芯片选择。 */
@@ -148,6 +161,7 @@ class TargetState {
     this.connectedSelectionKey = "";
     this.connectError = null;
     this.targetCandidates = [];
+    this.targetInformation = null;
   }
 
   /** 重新枚举本机可用调试探针，并处理自动选择和失效选择。 */

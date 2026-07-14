@@ -44,6 +44,29 @@
 <div class="picker">
   <h3>{target.targetCandidates.length > 0 ? "选择候选目标" : "型号覆盖"}</h3>
 
+  {#if target.targetInformation}
+    <div class="target-information">
+      <strong>{target.targetInformation.deviceType}</strong>
+      {#if target.targetInformation.deviceId != null}
+        <span class="ui-mono"
+          >Device ID 0x{target.targetInformation.deviceId
+            .toString(16)
+            .toUpperCase()}</span
+        >
+      {/if}
+      {#if target.targetInformation.revisionId != null}
+        <span class="ui-mono"
+          >Revision 0x{target.targetInformation.revisionId
+            .toString(16)
+            .toUpperCase()}</span
+        >
+      {/if}
+      {#if target.targetInformation.cpu}
+        <span>{target.targetInformation.cpu}</span>
+      {/if}
+    </div>
+  {/if}
+
   <label class="search-field">
     <Icon src={searchIcon} size={15} />
     <input
@@ -64,7 +87,9 @@
       <p class="empty">搜索中…</p>
     {:else if target.chipResults.length > 0}
       {#each target.chipResults as result (result)}
-        {@const candidate = target.targetCandidates.find((item) => item.name === result)}
+        {@const candidate = target.targetCandidates.find(
+          (item) => item.name === result,
+        )}
         <button
           type="button"
           class="chip-row"
@@ -110,6 +135,22 @@
     position: relative;
     display: block;
     color: var(--color-text-faint);
+  }
+
+  .target-information {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px var(--space-2);
+    border: 1px solid var(--color-accent-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-accent-soft);
+    color: var(--color-text-muted);
+    font-size: var(--text-2xs);
+    padding: var(--space-2);
+  }
+
+  .target-information strong {
+    color: var(--color-accent-strong);
   }
 
   .search-field input {

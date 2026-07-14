@@ -49,7 +49,9 @@
   );
 
   let chipName = $derived(
-    target.connected ? (target.connection?.chip ?? "") : target.chip.trim(),
+    target.connected
+      ? (target.connection?.chip ?? "")
+      : target.chip.trim() || target.targetInformation?.deviceType || "",
   );
 
   let sizeSuffix = $derived.by(() => {
@@ -65,25 +67,34 @@
   let chipSub = $derived(
     target.connected && target.connection
       ? `${target.connection.protocol.toUpperCase()} · ${target.connection.speedKhz ?? target.speedKhz} kHz${sizeSuffix}`
-      : `${target.protocol.toUpperCase()} · ${target.speedKhz} kHz`,
+      : target.targetInformation
+        ? [
+            target.targetInformation.deviceId == null
+              ? null
+              : `ID 0x${target.targetInformation.deviceId.toString(16).toUpperCase()}`,
+            target.targetInformation.revisionId == null
+              ? null
+              : `Rev 0x${target.targetInformation.revisionId.toString(16).toUpperCase()}`,
+            target.targetInformation.cpu,
+          ]
+            .filter(Boolean)
+            .join(" · ")
+        : `${target.protocol.toUpperCase()} · ${target.speedKhz} kHz`,
   );
 
-  let statusState = $derived(
-    target.connecting || target.probesLoading
-      ? "busy"
-      : target.connected
-        ? "connected"
-        : "idle",
-  );
-  let statusText = $derived(
-    target.probesLoading
-      ? "扫描中"
-      : target.connecting
-        ? "连接中"
-        : target.connected
-          ? "已连接"
-          : "未连接",
-  );
+  let statusState = $derived.by(() => {
+    if (target.probesLoading || target.connecting) return "busy";
+    if (target.connectError) return "error";
+    if (target.targetCandidates.length > 0) return "attention";
+    return target.connected ? "connected" : "idle";
+  });
+  let statusText = $derived.by(() => {
+    if (target.probesLoading) return "扫描中";
+    if (target.connecting) return "连接中";
+    if (target.connectError) return "连接失败";
+    if (target.targetCandidates.length > 0) return "请选择型号";
+    return target.connected ? "已连接" : "未连接";
+  });
   function sizeLabel(bytes: number): string {
     if (bytes <= 0) return "--";
     if (bytes >= 1024 * 1024 && bytes % (1024 * 1024) === 0) {
@@ -325,9 +336,19 @@
         type="button"
         class="ui-btn ui-btn--primary bar-action"
         disabled={target.connecting}
-        onclick={() => void target.connect()}
+        onclick={() => {
+          if (target.targetCandidates.length > 0) {
+            chipOpen = true;
+          } else {
+            void target.connect();
+          }
+        }}
       >
-        {target.connecting ? "连接中…" : "连接"}
+        {target.connecting
+          ? "连接中…"
+          : target.targetCandidates.length > 0
+            ? "选择型号"
+            : "连接"}
       </button>
     {/if}
   </div>
@@ -472,6 +493,14 @@
 
   .bar-status[data-state="busy"] {
     color: var(--color-accent-strong);
+  }
+
+  .bar-status[data-state="error"] {
+    color: var(--color-danger);
+  }
+
+  .bar-status[data-state="attention"] {
+    color: var(--color-warning);
   }
 
   .bar-action {

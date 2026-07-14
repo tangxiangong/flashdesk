@@ -52,6 +52,30 @@
       };
     }
 
+    if (target.targetCandidates.length > 0) {
+      const information = target.targetInformation;
+      const identity = information
+        ? [
+            information.deviceType,
+            information.deviceId == null
+              ? null
+              : `Device ID 0x${information.deviceId.toString(16).toUpperCase()}`,
+            information.cpu,
+          ]
+            .filter(Boolean)
+            .join(" · ")
+        : "已读取调试接口信息";
+      return {
+        tone: "info",
+        icon: targetIcon,
+        label: "已识别芯片系列",
+        message: `${identity}；检测到 ${target.targetCandidates.length} 个兼容型号，请确认具体容量/型号`,
+        progress: null,
+        pulse: false,
+        dismissible: false,
+      };
+    }
+
     if (target.connecting) {
       return {
         tone: "progress",
@@ -158,6 +182,7 @@
   data-tone={status.tone}
   role="status"
   aria-live="polite"
+  title={status.message}
 >
   <div class="status-main">
     <span class="status-icon" class:pulse={status.pulse}>
@@ -298,6 +323,19 @@
   }
 
   .status-strip[data-tone="danger"] {
+    top: 4px;
+    height: calc(var(--status-strip-height, 40px) - 8px);
+    border: 1px solid var(--color-danger-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-danger-soft);
+    box-shadow:
+      inset 3px 0 0 var(--color-danger),
+      0 4px 14px color-mix(in srgb, var(--color-danger) 12%, transparent);
+    color: var(--color-danger);
+    padding: 0 var(--space-3);
+  }
+
+  .status-strip[data-tone="danger"] strong {
     color: var(--color-danger);
   }
 
