@@ -1,5 +1,5 @@
 use crate::{
-    error::{AppError, Result, describe_error_chain},
+    error::{AppError, Result},
     models::{FirmwareFormat, FlashRequest, JobId, JobKind, JobStage, WireProtocol},
     services::firmware::validate_firmware,
     services::jobs::{emit_job_event, new_job_id},
@@ -129,21 +129,12 @@ fn run_probe_rs_flash(
 
     let probe_identifier = require_probe(request.probe.as_deref())?;
     let target_selector = request.target.chip.as_deref();
-    let selector: DebugProbeSelector =
-        probe_identifier
-            .as_str()
-            .try_into()
-            .map_err(
-                |err: DebugProbeSelectorParseError| AppError::ProbeRsFailure {
-                    detail: describe_error_chain(&err),
-                },
-            )?;
+    let selector: DebugProbeSelector = probe_identifier
+        .as_str()
+        .try_into()
+        .map_err(|err: DebugProbeSelectorParseError| AppError::operation(err))?;
 
-    let mut probe = Lister::new()
-        .open(selector)
-        .map_err(|err| AppError::ProbeRsFailure {
-            detail: describe_error_chain(&err),
-        })?;
+    let mut probe = Lister::new().open(selector).map_err(AppError::operation)?;
 
     let protocol = match request.target.protocol {
         WireProtocol::Swd => ProbeWireProtocol::Swd,
@@ -151,16 +142,10 @@ fn run_probe_rs_flash(
     };
     probe
         .select_protocol(protocol)
-        .map_err(|err| AppError::ProbeRsFailure {
-            detail: describe_error_chain(&err),
-        })?;
+        .map_err(AppError::operation)?;
 
     if let Some(speed_khz) = request.target.speed_khz {
-        probe
-            .set_speed(speed_khz)
-            .map_err(|err| AppError::ProbeRsFailure {
-                detail: describe_error_chain(&err),
-            })?;
+        probe.set_speed(speed_khz).map_err(AppError::operation)?;
     }
 
     let mut session = if request.target.connect_under_reset {
@@ -168,9 +153,7 @@ fn run_probe_rs_flash(
     } else {
         probe.attach(target_selector, Permissions::default())
     }
-    .map_err(|err| AppError::ProbeRsFailure {
-        detail: describe_error_chain(&err),
-    })?;
+    .map_err(AppError::operation)?;
 
     let format = probe_rs_format(firmware_format, request.firmware.base_address)?;
     let mut options = DownloadOptions::default();
@@ -194,9 +177,7 @@ fn run_probe_rs_flash(
         format,
         options,
     )
-    .map_err(|err| AppError::ProbeRsFailure {
-        detail: describe_error_chain(&err),
-    })?;
+    .map_err(AppError::operation)?;
 
     if request.options.reset_after {
         emit_job_event(
@@ -211,9 +192,7 @@ fn run_probe_rs_flash(
         session
             .core(0)
             .and_then(|mut core| core.reset())
-            .map_err(|err| AppError::ProbeRsFailure {
-                detail: describe_error_chain(&err),
-            })?;
+            .map_err(AppError::operation)?;
     }
 
     Ok(())
@@ -339,11 +318,11 @@ mod tests {
     }
 
     #[test]
-    fn failed_message_should_include_probe_rs_raw_detail() {
-        let message = failed_message(&AppError::ProbeRsFailure {
-            detail: "raw probe-rs stack detail".to_string(),
-        });
+    fn failed_message_should_include_raw_operation_detail() {
+        let message = failed_message(&AppError::operation(std::io::Error::other(
+            "raw stack detail",
+        )));
 
-        assert_eq!(message, "probe-rs 操作失败：raw probe-rs stack detail");
+        assert_eq!(message, "操作失败：raw stack detail");
     }
 }

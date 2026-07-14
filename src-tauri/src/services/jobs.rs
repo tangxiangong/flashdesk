@@ -29,8 +29,5 @@ pub fn emit_job_event(
         at: Utc::now(),
     };
 
-    app.emit("job_event", event)
-        .map_err(|err| AppError::ProbeRsFailure {
-            detail: err.to_string(),
-        })
+    app.emit("job_event", event).map_err(AppError::operation)
 }

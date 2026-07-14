@@ -59,25 +59,22 @@ pub fn connect_target(request: ConnectRequest) -> Result<ConnectionInfo> {
 
     let probe_identifier = require_probe(request.probe.as_deref())?;
     let target_selector = request.target.chip.as_deref();
-    let selector: DebugProbeSelector =
-        probe_identifier
-            .as_str()
-            .try_into()
-            .map_err(
-                |err: DebugProbeSelectorParseError| AppError::ProbeRsFailure {
-                    detail: err.to_string(),
-                },
-            )?;
+    let selector: DebugProbeSelector = probe_identifier
+        .as_str()
+        .try_into()
+        .map_err(|err: DebugProbeSelectorParseError| AppError::operation(err))?;
 
-    let mut probe = Lister::new().open(selector).map_err(probe_rs_error)?;
+    let mut probe = Lister::new().open(selector).map_err(AppError::operation)?;
     let protocol = match request.target.protocol {
         WireProtocol::Swd => ProbeWireProtocol::Swd,
         WireProtocol::Jtag => ProbeWireProtocol::Jtag,
     };
-    probe.select_protocol(protocol).map_err(probe_rs_error)?;
+    probe
+        .select_protocol(protocol)
+        .map_err(AppError::operation)?;
 
     if let Some(speed_khz) = request.target.speed_khz {
-        probe.set_speed(speed_khz).map_err(probe_rs_error)?;
+        probe.set_speed(speed_khz).map_err(AppError::operation)?;
     }
 
     let session_result = if request.target.connect_under_reset {
@@ -105,7 +102,7 @@ pub fn connect_target(request: ConnectRequest) -> Result<ConnectionInfo> {
                     .and_then(|value| value.target_information),
             });
         }
-        Err(error) => return Err(probe_rs_error(error)),
+        Err(error) => return Err(AppError::operation(error)),
     };
     let mut session = session;
     let chip = session.target().name.clone();
@@ -351,16 +348,17 @@ fn selector_string_from_info(probe: &DebugProbeInfo) -> String {
     value
 }
 
-fn probe_rs_error(error: impl std::fmt::Display) -> AppError {
-    AppError::ProbeRsFailure {
-        detail: error.to_string(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::error::AppError;
+
+    #[derive(Debug, thiserror::Error)]
+    #[error("probe summary")]
+    struct ProbeSummaryError {
+        #[source]
+        source: std::io::Error,
+    }
 
     fn probe(identifier: &str) -> ProbeSummary {
         ProbeSummary {
@@ -415,5 +413,18 @@ mod tests {
         let name = cpu_name_from_cpuid(0x410F_FFF0);
 
         assert_eq!(name, None);
+    }
+
+    #[test]
+    fn operation_error_should_preserve_chinese_summary_and_root_source_message() {
+        let error = AppError::operation(ProbeSummaryError {
+            source: std::io::Error::other("USB transfer failed"),
+        });
+        let response = error.to_response();
+
+        assert_eq!(
+            (response.message.as_str(), response.detail.as_deref()),
+            ("操作失败", Some("USB transfer failed"))
+        );
     }
 }

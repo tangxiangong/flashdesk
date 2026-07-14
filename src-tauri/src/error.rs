@@ -1,6 +1,8 @@
 use crate::models::{TargetCandidate, TargetInformation};
 use serde::Serialize;
-use std::path::Path;
+use std::{error::Error, path::Path};
+
+type BoxedError = Box<dyn Error + Send + Sync + 'static>;
 
 /// 应用内部统一错误结果类型。
 pub type Result<T> = std::result::Result<T, AppError>;
@@ -39,7 +41,7 @@ pub struct ErrorResponse {
     pub code: ErrorCode,
     /// 用户可见的主错误信息。
     pub message: String,
-    /// Frontend-safe diagnostic detail. Raw probe-rs logs and filesystem internals belong in job logs, not here.
+    /// 供诊断日志记录的原始错误；用户提示只展示 `message`。
     pub detail: Option<String>,
     /// 自动识别失败时按当前硬件信息缩小出的候选目标。
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -73,9 +75,12 @@ pub enum AppError {
     /// 固件地址无效。
     #[error("固件地址无效")]
     InvalidFirmwareAddress { detail: String },
-    /// probe-rs 底层操作失败。
-    #[error("probe-rs 操作失败")]
-    ProbeRsFailure { detail: String },
+    /// 底层设备操作失败，并保留可追溯的原始错误链。
+    #[error("操作失败")]
+    ProbeRsFailure {
+        #[source]
+        source: BoxedError,
+    },
     /// 文件系统读写失败。
     #[error("文件读写失败")]
     IoFailure(#[from] std::io::Error),
@@ -91,6 +96,13 @@ pub enum AppError {
 }
 
 impl AppError {
+    /// 包装底层操作错误，保留其 `source()` 链直到响应序列化边界。
+    pub fn operation(error: impl Error + Send + Sync + 'static) -> Self {
+        Self::ProbeRsFailure {
+            source: Box::new(error),
+        }
+    }
+
     /// 转换为前端可安全展示的错误响应。
     pub fn to_response(&self) -> ErrorResponse {
         match self {
@@ -138,10 +150,10 @@ impl AppError {
                 target_information: None,
                 recovery: "检查地址格式、对齐和目标芯片 Flash 映射。".to_string(),
             },
-            Self::ProbeRsFailure { detail } => ErrorResponse {
+            Self::ProbeRsFailure { source } => ErrorResponse {
                 code: ErrorCode::ProbeRsFailure,
                 message: self.to_string(),
-                detail: Some(detail.clone()),
+                detail: Some(root_cause_message(source.as_ref())),
                 target_candidates: Vec::new(),
                 target_information: None,
                 recovery: "确认芯片连接、接口、速度和访问地址后重试。".to_string(),
@@ -180,6 +192,14 @@ impl AppError {
             },
         }
     }
+}
+
+fn root_cause_message(error: &(dyn Error + 'static)) -> String {
+    let mut root_cause = error;
+    while let Some(source) = root_cause.source() {
+        root_cause = source;
+    }
+    root_cause.to_string()
 }
 
 /// 展开错误来源链，得到可直接在当前进程内展示的完整错误描述。

@@ -356,7 +356,7 @@ async function invokeCommand<T>(
         operationId,
         meta.kind,
         "failed",
-        `${meta.label}失败：${readableError(error)}`,
+        `${meta.label}失败：${detailedError(error)}`,
       );
     }
     throw error;
@@ -386,7 +386,7 @@ async function invokeCommand<T>(
         needsTargetConfirmation ? "completed" : "failed",
         needsTargetConfirmation
           ? "自动识别已缩小到兼容型号，等待确认具体型号"
-          : `${meta.label}失败：${readableError(error)}`,
+          : `${meta.label}失败：${detailedError(error)}`,
       );
     }
     throw error;
@@ -459,7 +459,6 @@ export function readableError(err: unknown, fallback = "操作失败"): string {
       ? response.detail.trim()
       : null;
 
-  if (message && detail) return `${message}：${detail}`;
   if (message) return message;
   if (detail) return detail;
 
@@ -469,6 +468,16 @@ export function readableError(err: unknown, fallback = "操作失败"): string {
   }
 
   return fallback;
+}
+
+/** 供诊断日志使用的底层原始错误；调用方负责添加操作概括。 */
+export function detailedError(err: unknown, fallback = "操作失败"): string {
+  if (!err || typeof err !== "object") return readableError(err, fallback);
+
+  const detail = (err as AppErrorResponse).detail;
+  return typeof detail === "string" && detail.trim()
+    ? detail.trim()
+    : readableError(err, fallback);
 }
 
 /** 从后端错误响应中提取自动识别候选目标。 */

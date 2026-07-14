@@ -1,5 +1,5 @@
 use crate::{
-    error::{AppError, Result, describe_error_chain},
+    error::{AppError, Result},
     models::{
         EraseRequest, JobId, JobKind, JobStage, MemoryReadResult, MemoryRequest, TargetSelection,
         WireProtocol,
@@ -23,11 +23,11 @@ const MAX_MEMORY_TRANSFER_BYTES: u32 = 4096;
 pub fn read_memory(request: MemoryRequest) -> Result<MemoryReadResult> {
     validate_memory_range(request.address, request.length)?;
     let mut session = open_session(&request.target, request.probe.as_deref())?;
-    let mut core = session.core(0).map_err(probe_rs_error)?;
+    let mut core = session.core(0).map_err(AppError::operation)?;
     let mut data = vec![0; request.length as usize];
 
     probe_rs::MemoryInterface::read(&mut core, request.address, &mut data)
-        .map_err(probe_rs_error)?;
+        .map_err(AppError::operation)?;
 
     Ok(MemoryReadResult {
         address: request.address,
@@ -86,7 +86,7 @@ fn run_erase_target(app: &AppHandle, job_id: &JobId, request: EraseRequest) -> R
         "正在擦除目标 Flash",
     )?;
 
-    erase_all(&mut session, &mut progress, false).map_err(probe_rs_error)?;
+    erase_all(&mut session, &mut progress, false).map_err(AppError::operation)?;
 
     emit_job_event(
         app,
@@ -109,25 +109,22 @@ fn open_session(target: &TargetSelection, probe_identifier: Option<&str>) -> Res
 
     let probe_identifier = require_probe(probe_identifier)?;
     let target_selector = target.chip.as_deref();
-    let selector: DebugProbeSelector =
-        probe_identifier
-            .as_str()
-            .try_into()
-            .map_err(
-                |err: DebugProbeSelectorParseError| AppError::ProbeRsFailure {
-                    detail: describe_error_chain(&err),
-                },
-            )?;
+    let selector: DebugProbeSelector = probe_identifier
+        .as_str()
+        .try_into()
+        .map_err(|err: DebugProbeSelectorParseError| AppError::operation(err))?;
 
-    let mut probe = Lister::new().open(selector).map_err(probe_rs_error)?;
+    let mut probe = Lister::new().open(selector).map_err(AppError::operation)?;
     let protocol = match target.protocol {
         WireProtocol::Swd => ProbeWireProtocol::Swd,
         WireProtocol::Jtag => ProbeWireProtocol::Jtag,
     };
-    probe.select_protocol(protocol).map_err(probe_rs_error)?;
+    probe
+        .select_protocol(protocol)
+        .map_err(AppError::operation)?;
 
     if let Some(speed_khz) = target.speed_khz {
-        probe.set_speed(speed_khz).map_err(probe_rs_error)?;
+        probe.set_speed(speed_khz).map_err(AppError::operation)?;
     }
 
     if target.connect_under_reset {
@@ -135,7 +132,7 @@ fn open_session(target: &TargetSelection, probe_identifier: Option<&str>) -> Res
     } else {
         probe.attach(target_selector, Permissions::default())
     }
-    .map_err(probe_rs_error)
+    .map_err(AppError::operation)
 }
 
 fn validate_memory_range(address: u64, length: u32) -> Result<()> {
@@ -177,12 +174,6 @@ fn failed_message(error: &AppError) -> String {
     match response.detail {
         Some(detail) => format!("{}：{}", response.message, detail),
         None => response.message,
-    }
-}
-
-fn probe_rs_error(error: impl std::error::Error + 'static) -> AppError {
-    AppError::ProbeRsFailure {
-        detail: describe_error_chain(&error),
     }
 }
 
